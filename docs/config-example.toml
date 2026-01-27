@@ -1,0 +1,83 @@
+# TaskD 任务配置示例
+
+# 简单的 Python 应用
+[simple-app]
+name = "simple-app"
+executable = "python"
+args = ["app.py", "--port", "8080"]
+workdir = "/path/to/app"
+inherit_env = true
+env = [
+    "FLASK_ENV=production",
+    "DATABASE_URL=sqlite:///app.db"
+]
+auto_start = true
+
+[simple-app.restart]
+policy = "always"
+max_retry = 3
+delay = "5s"
+
+[simple-app.log]
+max_size = 10      # MB
+max_backups = 5
+max_age = 30       # days
+compress = true
+
+# Node.js 服务
+[web-server]
+name = "web-server"
+executable = "node"
+args = ["server.js"]
+workdir = "/var/www/myapp"
+inherit_env = true
+env = ["NODE_ENV=production", "PORT=3000"]
+stdout = "/var/log/web-server.log"
+stderr = "/var/log/web-server.error.log"
+auto_start = true
+
+[web-server.restart]
+policy = "on-failure"
+max_retry = 5
+delay = "10s"
+
+# 数据库备份任务
+[db-backup]
+name = "db-backup"
+executable = "mysqldump"
+args = ["-u", "backup_user", "-p", "mydb"]
+workdir = "/backup"
+inherit_env = false
+env = ["MYSQL_PWD=backup_password"]
+stdout = "/backup/db-backup.sql"
+auto_start = false
+
+[db-backup.restart]
+policy = "never"
+
+# Windows 批处理脚本
+[cleanup-task]
+name = "cleanup-task"
+executable = "cmd"
+args = ["/c", "cleanup.bat"]
+workdir = "C:\\temp"
+inherit_env = true
+stdout = "C:\\logs\\cleanup.log"
+stderr = "C:\\logs\\cleanup.error.log"
+auto_start = false
+
+# 带标准输入的任务
+[interactive-app]
+name = "interactive-app"
+executable = "python"
+args = ["interactive.py"]
+workdir = "/apps/interactive"
+stdin = "/apps/interactive/input.txt"
+stdout = "/apps/interactive/output.log"
+inherit_env = true
+auto_start = false
+
+[interactive-app.restart]
+policy = "on-failure"
+max_retry = 1
+delay = "30s"

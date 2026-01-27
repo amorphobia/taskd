@@ -1,0 +1,43 @@
+package task
+
+// Config task configuration structure
+type Config struct {
+	Name       string            `toml:"name"`
+	Executable string            `toml:"executable"`
+	Args       []string          `toml:"args,omitempty"`
+	WorkDir    string            `toml:"workdir,omitempty"`
+	Env        []string          `toml:"env,omitempty"`
+	InheritEnv bool              `toml:"inherit_env"`
+	Stdin      string            `toml:"stdin,omitempty"`
+	Stdout     string            `toml:"stdout,omitempty"`
+	Stderr     string            `toml:"stderr,omitempty"`
+	AutoStart  bool              `toml:"auto_start"`
+	Restart    RestartPolicy     `toml:"restart,omitempty"`
+	Log        LogConfig         `toml:"log,omitempty"`
+}
+
+// RestartPolicy restart policy configuration
+type RestartPolicy struct {
+	Policy    string `toml:"policy"`    // always, on-failure, never
+	MaxRetry  int    `toml:"max_retry"`
+	Delay     string `toml:"delay"`     // restart delay, e.g. "5s", "1m"
+}
+
+// LogConfig log configuration
+type LogConfig struct {
+	MaxSize    int  `toml:"max_size"`    // MB
+	MaxBackups int  `toml:"max_backups"`
+	MaxAge     int  `toml:"max_age"`     // days
+	Compress   bool `toml:"compress"`
+}
+
+// TaskInfo task runtime information
+type TaskInfo struct {
+	Name       string    `json:"name"`
+	Status     string    `json:"status"`     // running, stopped, failed
+	PID        int       `json:"pid"`
+	StartTime  string    `json:"start_time"`
+	Executable string    `json:"executable"`
+	ExitCode   int       `json:"exit_code,omitempty"`
+	LastError  string    `json:"last_error,omitempty"`
+}
