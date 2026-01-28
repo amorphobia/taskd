@@ -175,10 +175,9 @@ func (m *Manager) stopTask(name string) error {
 	}
 	
 	err := task.Stop()
-	if err == nil {
-		// Save runtime state after successful stop
-		m.saveRuntimeState()
-	}
+	// Always save runtime state after stop attempt, regardless of success
+	// This ensures that even if the task was already stopped, the state is consistent
+	m.saveRuntimeState()
 	return err
 }
 

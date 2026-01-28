@@ -63,8 +63,15 @@ func (t *Task) Start() error {
 	cmd := exec.CommandContext(t.ctx, executable, args...)
 	
 	// Set working directory
-	if t.config.WorkDir != "" {
-		cmd.Dir = t.config.WorkDir
+	// Always set working directory - use config value or default to user home
+	workDir := t.config.WorkDir
+	if workDir == "" {
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			workDir = homeDir
+		}
+	}
+	if workDir != "" {
+		cmd.Dir = workDir
 	}
 	
 	// Set environment variables
@@ -134,31 +141,30 @@ func (t *Task) Stop() error {
 	
 	// Send interrupt signal to process
 	if t.process != nil {
-		// On Windows, we need to use a different approach
-		// First try to send interrupt signal, then kill if needed
-		if err := t.sendInterruptSignal(); err != nil {
-			// If interrupt fails, force kill the process
-			if killErr := t.process.Kill(); killErr != nil {
-				return fmt.Errorf("failed to terminate process: %w", killErr)
+		// Try to kill the process
+		if err := t.process.Kill(); err != nil {
+			// If kill fails, check if process is already dead
+			if t.process.Signal(os.Kill) != nil {
+				// Process is already dead, update status
+				t.status = "stopped"
+				t.process = nil
+				t.exitCode = 0
+				t.lastError = ""
+				return nil
 			}
+			return fmt.Errorf("failed to terminate process: %w", err)
 		}
+		
+		// Update status immediately since we've terminated the process
+		t.status = "stopped"
+		t.process = nil
+		t.exitCode = -1 // Indicates forced termination
+		t.lastError = "Process terminated by user"
 	}
 	
 	return nil
 }
 
-// sendInterruptSignal sends an interrupt signal to the process
-func (t *Task) sendInterruptSignal() error {
-	if t.process == nil {
-		return fmt.Errorf("no process to signal")
-	}
-	
-	// On Windows, we use the process.Signal method
-	// Note: On Windows, only Kill signal is supported by default
-	// For proper Ctrl+C handling, we would need to use Windows-specific APIs
-	// For now, we'll use Kill which is more reliable
-	return t.process.Kill()
-}
 
 // GetInfo get task information
 func (t *Task) GetInfo() *TaskInfo {

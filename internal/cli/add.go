@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"taskd/internal/task"
@@ -22,6 +23,13 @@ var addCmd = &cobra.Command{
 		stdin, _ := cmd.Flags().GetString("stdin")
 		stdout, _ := cmd.Flags().GetString("stdout")
 		stderr, _ := cmd.Flags().GetString("stderr")
+		
+		// If no working directory specified, use user's home directory
+		if workdir == "" {
+			if homeDir, err := os.UserHomeDir(); err == nil {
+				workdir = homeDir
+			}
+		}
 		
 		taskConfig := &task.Config{
 			Name:       taskName,
