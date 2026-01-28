@@ -1,32 +1,32 @@
-# 构建输出
+# Build output
 build/
 dist/
 *.exe
 
-# Go 相关
+# Go related
 *.mod.sum
 vendor/
 
-# 配置和日志文件
+# Configuration and log files
 *.log
 *.pid
 config.toml
 
-# IDE 文件
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# 操作系统文件
+# Operating system files
 .DS_Store
 Thumbs.db
 
-# 测试覆盖率
+# Test coverage
 coverage.out
 coverage.html
 
-# 临时文件
+# Temporary files
 *.tmp
 *.temp
