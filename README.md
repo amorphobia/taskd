@@ -1,38 +1,63 @@
-# TaskD - 任务守护进程管理工具
+# TaskD - Task Daemon Management Tool
 
-TaskD 是一个为 Windows 非管理员用户设计的任务管理工具，可以统一管理和监控用户级别的后台进程，类似于 Windows 服务但无需管理员权限。
+TaskD is a task management tool designed for Windows non-administrator users, providing unified management and monitoring of user-level background processes, similar to Windows services but without requiring administrator privileges.
 
-## 主要特性
+## Key Features
 
-- ✅ 指定可执行文件路径和参数
-- ✅ 指定工作目录
-- ✅ 环境变量管理（继承或覆盖）
-- ✅ 预设标准输入
-- ✅ 标准输出和错误重定向
-- ✅ 日志轮替
-- ✅ TOML 配置文件
-- ✅ 命令行任务管理
-- ✅ 跨平台支持（Go 语言）
+- ✅ Specify executable file path and arguments
+- ✅ Specify working directory
+- ✅ Environment variable management (inherit or override)
+- ✅ Standard input redirection
+- ✅ Standard output and error redirection with relative path support
+- ✅ Automatic file creation in append mode
+- ✅ Output merging when stdout and stderr point to the same file
+- ✅ TOML configuration files
+- ✅ Command-line task management
+- ✅ Cross-platform support (Go language)
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 添加任务
-taskd add mytask --exec "python app.py" --workdir "/path/to/app"
+# Add a task with output redirection
+taskd add mytask --exec "python app.py" --workdir "/path/to/app" --stdout "logs/output.log" --stderr "logs/error.log"
 
-# 启动任务
+# Start task
 taskd start mytask
 
-# 查看状态
-taskd status mytask
+# View detailed task information (replaces status command)
+taskd info mytask
 
-# 列出所有任务
+# List all tasks
 taskd list
+
+# Stop task
+taskd stop mytask
 ```
 
-## 技术栈
+## Output Redirection
 
-- **语言**: Go 1.21+
-- **配置**: TOML
-- **日志**: 结构化日志 + 轮替
-- **跨平台**: Windows/Linux/macOS
+TaskD supports comprehensive output redirection:
+
+- **Relative paths**: Resolved based on the task's working directory
+- **Append mode**: All output files are opened in append mode
+- **Output merging**: When stdout and stderr point to the same file, TaskD automatically handles merging
+- **Optional output**: If no output files are specified, output is discarded
+
+### Examples
+
+```bash
+# Redirect to relative paths (resolved from working directory)
+taskd add mytask --exec "python app.py" --workdir "/app" --stdout "logs/out.log" --stderr "logs/err.log"
+
+# Redirect to absolute paths
+taskd add mytask --exec "python app.py" --stdout "/var/log/app.log" --stderr "/var/log/app.log"
+
+# Redirect only stdout, discard stderr
+taskd add mytask --exec "python app.py" --stdout "output.log"
+```
+
+## Technology Stack
+
+- **Language**: Go 1.21+
+- **Configuration**: TOML
+- **Cross-platform**: Windows/Linux/macOS

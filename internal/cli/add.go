@@ -59,8 +59,8 @@ func init() {
 	addCmd.Flags().StringSliceP("env", "E", nil, "environment variables (format: KEY=VALUE)")
 	addCmd.Flags().BoolP("inherit-env", "i", true, "inherit system environment variables")
 	addCmd.Flags().String("stdin", "", "standard input file")
-	addCmd.Flags().String("stdout", "", "standard output redirect file")
-	addCmd.Flags().String("stderr", "", "standard error redirect file")
+	addCmd.Flags().String("stdout", "", "standard output redirect file (relative paths resolved from working directory)")
+	addCmd.Flags().String("stderr", "", "standard error redirect file (relative paths resolved from working directory)")
 	
 	addCmd.MarkFlagRequired("exec")
 }

@@ -22,6 +22,7 @@ type Task struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	onExit    func(taskName string) // Callback when task exits
+	taskIO    *TaskIO              // IO manager
 }
 
 // NewTask create a new task
@@ -150,6 +151,11 @@ func (t *Task) Stop() error {
 				t.process = nil
 				t.exitCode = 0
 				t.lastError = ""
+				// Clean up IO resources
+				if t.taskIO != nil {
+					t.taskIO.Close()
+					t.taskIO = nil
+				}
 				return nil
 			}
 			return fmt.Errorf("failed to terminate process: %w", err)
@@ -160,6 +166,15 @@ func (t *Task) Stop() error {
 		t.process = nil
 		t.exitCode = -1 // Indicates forced termination
 		t.lastError = "Process terminated by user"
+	}
+	
+	// Clean up IO resources
+	if t.taskIO != nil {
+		if err := t.taskIO.Close(); err != nil {
+			// Log the error but don't fail the stop operation
+			fmt.Printf("Warning: failed to close IO resources: %v\n", err)
+		}
+		t.taskIO = nil
 	}
 	
 	return nil
@@ -263,31 +278,25 @@ func (t *Task) monitorExistingProcess(process *os.Process) {
 }
 
 func (t *Task) setupIO(cmd *exec.Cmd) error {
-	// Setup standard input
-	if t.config.Stdin != "" {
-		file, err := os.Open(t.config.Stdin)
-		if err != nil {
-			return fmt.Errorf("failed to open stdin file: %w", err)
-		}
-		cmd.Stdin = file
+	// Create task IO configuration
+	ioManager := GetIOManager()
+	taskIO, err := ioManager.CreateTaskIO(t.config)
+	if err != nil {
+		return fmt.Errorf("failed to create task IO: %w", err)
 	}
 	
-	// Setup standard output
-	if t.config.Stdout != "" {
-		file, err := os.OpenFile(t.config.Stdout, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return fmt.Errorf("failed to open stdout file: %w", err)
-		}
-		cmd.Stdout = file
-	}
+	// Save IO reference for cleanup
+	t.taskIO = taskIO
 	
-	// Setup standard error
-	if t.config.Stderr != "" {
-		file, err := os.OpenFile(t.config.Stderr, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return fmt.Errorf("failed to open stderr file: %w", err)
-		}
-		cmd.Stderr = file
+	// Set standard input/output
+	if taskIO.Stdin != nil {
+		cmd.Stdin = taskIO.Stdin
+	}
+	if taskIO.Stdout != nil {
+		cmd.Stdout = taskIO.Stdout
+	}
+	if taskIO.Stderr != nil {
+		cmd.Stderr = taskIO.Stderr
 	}
 	
 	return nil
@@ -312,6 +321,15 @@ func (t *Task) waitForExit(cmd *exec.Cmd) {
 	} else {
 		t.exitCode = 0
 		t.lastError = ""
+	}
+	
+	// Clean up IO resources
+	if t.taskIO != nil {
+		if closeErr := t.taskIO.Close(); closeErr != nil {
+			// Log the error but don't override the main error
+			fmt.Printf("Warning: failed to close IO resources: %v\n", closeErr)
+		}
+		t.taskIO = nil
 	}
 	
 	// Notify manager to update runtime state when task exits

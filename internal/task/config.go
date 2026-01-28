@@ -41,3 +41,23 @@ type TaskInfo struct {
 	ExitCode   int       `json:"exit_code,omitempty"`
 	LastError  string    `json:"last_error,omitempty"`
 }
+// TaskDetailInfo detailed task information (merges all fields from original TaskInfo)
+type TaskDetailInfo struct {
+	// Basic status information (information displayed by original status command)
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	PID        int    `json:"pid"`
+	StartTime  string `json:"start_time"`
+	Executable string `json:"executable"`
+	ExitCode   int    `json:"exit_code,omitempty"`
+	LastError  string `json:"last_error,omitempty"`
+	
+	// Extended configuration information
+	WorkDir    string   `json:"work_dir"`
+	Args       []string `json:"args,omitempty"`
+	Env        []string `json:"env,omitempty"`
+	InheritEnv bool     `json:"inherit_env"`
+	
+	// IO redirection information
+	IOInfo     *TaskIOInfo `json:"io_info"`
+}

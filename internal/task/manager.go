@@ -343,3 +343,46 @@ func getConfigDir() string {
 	homeDir, _ := os.UserHomeDir()
 	return filepath.Join(homeDir, ".taskd")
 }
+// GetTaskDetailInfo get detailed task information (replaces GetTaskStatus)
+func GetTaskDetailInfo(name string) (*TaskDetailInfo, error) {
+	manager := GetManager()
+	return manager.getTaskDetailInfo(name)
+}
+
+func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
+	m.mu.RLock()
+	task, exists := m.tasks[name]
+	m.mu.RUnlock()
+	
+	if !exists {
+		return nil, fmt.Errorf("task '%s' does not exist", name)
+	}
+	
+	// Get basic task info
+	basicInfo := task.GetInfo()
+	
+	// Get IO info
+	ioManager := GetIOManager()
+	ioInfo, err := ioManager.GetTaskIOInfo(task.config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get IO info: %w", err)
+	}
+	
+	// Create detailed info
+	detailInfo := &TaskDetailInfo{
+		Name:       basicInfo.Name,
+		Status:     basicInfo.Status,
+		PID:        basicInfo.PID,
+		StartTime:  basicInfo.StartTime,
+		Executable: basicInfo.Executable,
+		ExitCode:   basicInfo.ExitCode,
+		LastError:  basicInfo.LastError,
+		WorkDir:    task.config.WorkDir,
+		Args:       task.config.Args,
+		Env:        task.config.Env,
+		InheritEnv: task.config.InheritEnv,
+		IOInfo:     ioInfo,
+	}
+	
+	return detailInfo, nil
+}

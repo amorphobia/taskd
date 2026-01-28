@@ -58,38 +58,9 @@ var restartCmd = &cobra.Command{
 	},
 }
 
-var statusCmd = &cobra.Command{
-	Use:   "status [task-name]",
-	Short: "Show task status",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		taskName := args[0]
-		
-		manager := task.GetManager()
-		info, err := manager.GetTaskStatus(taskName)
-		if err != nil {
-			return fmt.Errorf("failed to get task status: %w", err)
-		}
-		
-		fmt.Printf("Task Name: %s\n", info.Name)
-		fmt.Printf("Status: %s\n", info.Status)
-		fmt.Printf("Process ID: %d\n", info.PID)
-		fmt.Printf("Start Time: %s\n", info.StartTime)
-		fmt.Printf("Executable: %s\n", info.Executable)
-		if info.ExitCode != 0 {
-			fmt.Printf("Exit Code: %d\n", info.ExitCode)
-		}
-		if info.LastError != "" {
-			fmt.Printf("Last Error: %s\n", info.LastError)
-		}
-		
-		return nil
-	},
-}
-
 func init() {
 	rootCmd.AddCommand(startCmd)
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(restartCmd)
-	rootCmd.AddCommand(statusCmd)
+	// status command has been replaced by info command
 }
