@@ -59,8 +59,13 @@ Examples:
 			return fmt.Errorf("invalid edit parameters: %w", err)
 		}
 		
+		// Check if any changes were specified
+		if !hasAnyChanges(editConfig) {
+			return fmt.Errorf("no changes specified. Use --help to see available options")
+		}
+		
 		// Validate the new configuration
-		if err := validateEditConfig(editConfig); err != nil {
+		if err := validateEditConfig(editConfig, currentInfo); err != nil {
 			return fmt.Errorf("invalid configuration: %w", err)
 		}
 		
@@ -146,7 +151,31 @@ func parseEditFlags(cmd *cobra.Command, currentInfo *task.TaskDetailInfo) (*Edit
 	return config, nil
 }
 
-func validateEditConfig(config *EditConfig) error {
+// hasAnyChanges checks if any changes were specified in the edit configuration
+func hasAnyChanges(config *EditConfig) bool {
+	// Check if any update flags were set
+	if config.Executable != nil ||
+		config.WorkDir != nil ||
+		len(config.Env) > 0 ||
+		config.InheritEnv != nil ||
+		config.Stdin != nil ||
+		config.Stdout != nil ||
+		config.Stderr != nil {
+		return true
+	}
+	
+	// Check if any clear flags were set
+	if config.ClearEnv ||
+		config.ClearStdin ||
+		config.ClearStdout ||
+		config.ClearStderr {
+		return true
+	}
+	
+	return false
+}
+
+func validateEditConfig(config *EditConfig, currentInfo *task.TaskDetailInfo) error {
 	// Validate required fields cannot be cleared
 	if config.Executable != nil && strings.TrimSpace(*config.Executable) == "" {
 		return fmt.Errorf("executable cannot be empty (required field)")
@@ -179,9 +208,9 @@ func validateEditConfig(config *EditConfig) error {
 	}
 	
 	// Validate IO paths if provided
-	workdir := ""
+	workdir := currentInfo.WorkDir  // Use current task's working directory
 	if config.WorkDir != nil {
-		workdir = *config.WorkDir
+		workdir = *config.WorkDir    // Or use the new working directory if being updated
 	}
 	
 	stdin := ""
