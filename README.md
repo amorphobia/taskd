@@ -56,6 +56,43 @@ taskd add mytask --exec "python app.py" --stdout "/var/log/app.log" --stderr "/v
 taskd add mytask --exec "python app.py" --stdout "output.log"
 ```
 
+## Configuration
+
+### TaskD Home Directory
+
+TaskD stores its configuration files, task definitions, and runtime state in a dedicated directory. You can customize this location using the `TASKD_HOME` environment variable:
+
+```bash
+# Use custom directory
+export TASKD_HOME="/path/to/my/taskd"
+taskd add mytask --exec "python app.py"
+
+# Use default directory (~/.taskd)
+unset TASKD_HOME
+taskd add mytask --exec "python app.py"
+```
+
+**Default locations:**
+- **Linux/macOS**: `~/.taskd/`
+- **Windows**: `%USERPROFILE%\.taskd\`
+
+**Directory structure:**
+```
+$TASKD_HOME/
+├── config.toml          # Global configuration
+├── tasks/               # Task configuration files
+│   ├── mytask.toml
+│   └── anothertask.toml
+└── runtime.json         # Runtime state
+```
+
+### Environment Variable Priority
+
+1. `TASKD_HOME` environment variable (if set)
+2. Default: `$HOME/.taskd` (Linux/macOS) or `%USERPROFILE%\.taskd` (Windows)
+
+If the specified `TASKD_HOME` directory doesn't exist, TaskD will create it automatically.
+
 ## Technology Stack
 
 - **Language**: Go 1.21+

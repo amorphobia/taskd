@@ -98,17 +98,46 @@ taskd/
 
 ## 配置文件位置
 
+TaskD 使用 `TASKD_HOME` 环境变量来确定配置文件的存储位置：
+
+### 目录选择优先级
+1. `TASKD_HOME` 环境变量（如果设置）
+2. 默认位置：
+   - Windows: `%USERPROFILE%\.taskd`
+   - Linux/macOS: `~/.taskd`
+
+### 目录结构
+```
+$TASKD_HOME/
+├── config.toml          # 全局配置文件
+├── tasks/               # 任务配置目录
+│   ├── task1.toml      # 任务配置文件
+│   └── task2.toml
+└── runtime.json         # 运行时状态文件
+```
+
 ### 全局配置
-- Windows: `%USERPROFILE%\.taskd\config.toml`
-- Linux/macOS: `~/.taskd/config.toml`
+- 默认: `$TASKD_HOME/config.toml`
+- 可通过 `--config` 参数指定自定义路径
 
 ### 任务配置
-- Windows: `%USERPROFILE%\.taskd\tasks\*.toml`
-- Linux/macOS: `~/.taskd/tasks/*.toml`
+- 目录: `$TASKD_HOME/tasks/`
+- 格式: `任务名.toml`
 
-### 日志文件
-- 默认位置: 配置目录下的 `logs/` 子目录
-- 可通过配置文件自定义
+### 运行时状态
+- 文件: `$TASKD_HOME/runtime.json`
+- 存储当前运行任务的状态信息
+
+### 使用示例
+```bash
+# 使用自定义目录
+export TASKD_HOME="/path/to/my/taskd"
+taskd add mytask --exec "python app.py"
+
+# 使用默认目录
+unset TASKD_HOME
+taskd add mytask --exec "python app.py"
+```
 
 ## 构建和部署
 

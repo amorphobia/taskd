@@ -1,8 +1,9 @@
 package cli
 
 import (
-	"github.com/spf13/cobra"
 	"taskd/internal/config"
+
+	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
@@ -24,9 +25,9 @@ func Execute() error {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	
+
 	// Global configuration flags
-	rootCmd.PersistentFlags().StringVar(&config.ConfigFile, "config", "", "config file path (default: ~/.taskd/config.toml)")
+	rootCmd.PersistentFlags().StringVar(&config.ConfigFile, "config", "", "config file path (default: $TASKD_HOME/config.toml or ~/.taskd/config.toml)")
 	rootCmd.PersistentFlags().BoolVar(&config.Verbose, "verbose", false, "verbose output")
 }
 

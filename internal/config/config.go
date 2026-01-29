@@ -26,12 +26,8 @@ func InitConfig() {
 	if ConfigFile != "" {
 		viper.SetConfigFile(ConfigFile)
 	} else {
-		// Default config file path
-		homeDir, _ := os.UserHomeDir()
-		configDir := filepath.Join(homeDir, ".taskd")
-		
-		// Ensure config directory exists
-		os.MkdirAll(configDir, 0755)
+		// Default config file path using TaskD home directory
+		configDir := GetTaskDConfigDir()
 		
 		viper.AddConfigPath(configDir)
 		viper.SetConfigName("config")

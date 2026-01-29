@@ -134,10 +134,10 @@ taskd add backup-job \
 
 ## 配置文件示例
 
-任务配置会自动保存到 `~/.taskd/tasks/` 目录下的 TOML 文件中：
+任务配置会自动保存到 TaskD 配置目录下的 TOML 文件中。配置目录由 `TASKD_HOME` 环境变量决定，默认为 `~/.taskd/tasks/`：
 
 ```toml
-# ~/.taskd/tasks/web-app.toml
+# $TASKD_HOME/tasks/web-app.toml (默认: ~/.taskd/tasks/web-app.toml)
 name = "web-app"
 executable = "python"
 args = ["app.py"]
@@ -158,6 +158,21 @@ max_size = 10
 max_backups = 5
 max_age = 30
 compress = true
+```
+
+### 自定义配置目录
+
+```bash
+# 使用自定义配置目录
+export TASKD_HOME="/path/to/my/taskd"
+taskd add web-app --exec "python app.py" --workdir "C:\myapp"
+# 配置文件将保存到: /path/to/my/taskd/tasks/web-app.toml
+
+# 使用默认配置目录
+unset TASKD_HOME
+taskd add web-app --exec "python app.py" --workdir "C:\myapp"
+# 配置文件将保存到: ~/.taskd/tasks/web-app.toml
+```
 ```
 
 ## 常见使用场景

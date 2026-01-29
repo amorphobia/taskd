@@ -108,8 +108,10 @@ taskd stop web-app
 
 ## 配置文件示例
 
+TaskD 使用 `TASKD_HOME` 环境变量来确定配置文件位置。如果未设置，则使用默认位置 `~/.taskd`。
+
 ```toml
-# ~/.taskd/tasks/web-app.toml
+# $TASKD_HOME/tasks/web-app.toml (或 ~/.taskd/tasks/web-app.toml)
 name = "web-app"
 executable = "python"
 args = ["app.py"]
@@ -129,6 +131,20 @@ max_size = 10
 max_backups = 5
 max_age = 30
 compress = true
+```
+
+### 自定义配置目录
+
+```bash
+# 设置自定义配置目录
+export TASKD_HOME="/path/to/my/taskd"
+
+# 添加任务（配置将保存到 $TASKD_HOME/tasks/）
+taskd add web-app --exec "python app.py" --workdir "/myapp"
+
+# 使用默认目录
+unset TASKD_HOME
+taskd add web-app --exec "python app.py" --workdir "/myapp"
 ```
 
 ## 开发计划
