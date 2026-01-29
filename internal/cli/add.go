@@ -77,11 +77,15 @@ var addCmd = &cobra.Command{
 			Stderr:     stderr,
 		}
 		
+		// Display configuration warnings before adding the task
+		displayConfigurationWarnings(taskConfig)
+		
 		if err := task.AddTask(taskConfig); err != nil {
 			return fmt.Errorf("failed to add task: %w", err)
 		}
 		
-		fmt.Printf("Task '%s' added successfully\n", taskName)
+		// Display success message with helpful information
+		displayTaskAddedSuccess(taskName, taskConfig)
 		return nil
 	},
 }
@@ -362,4 +366,66 @@ func validateExecutableConflicts(executable, stdin, stdout, stderr string) error
 	}
 	
 	return nil
+}
+
+// displayTaskAddedSuccess displays a comprehensive success message
+func displayTaskAddedSuccess(taskName string, config *task.Config) {
+	fmt.Printf("Task '%s' added successfully.\n\n", taskName)
+	
+	// Display quick summary
+	fmt.Printf("Summary:\n")
+	fmt.Printf("  Name:       %s\n", taskName)
+	fmt.Printf("  Executable: %s\n", config.Executable)
+	fmt.Printf("  Work Dir:   %s\n", config.WorkDir)
+	
+	// Display IO redirection info if configured
+	if config.Stdin != "" || config.Stdout != "" || config.Stderr != "" {
+		fmt.Printf("  IO Setup:   ")
+		ioInfo := []string{}
+		if config.Stdin != "" {
+			ioInfo = append(ioInfo, fmt.Sprintf("stdin=%s", config.Stdin))
+		}
+		if config.Stdout != "" {
+			ioInfo = append(ioInfo, fmt.Sprintf("stdout=%s", config.Stdout))
+		}
+		if config.Stderr != "" {
+			ioInfo = append(ioInfo, fmt.Sprintf("stderr=%s", config.Stderr))
+		}
+		fmt.Printf("%s\n", strings.Join(ioInfo, ", "))
+	}
+	
+	fmt.Printf("\n")
+	
+	// Display next steps
+	fmt.Printf("Next steps:\n")
+	fmt.Printf("  taskd start %s    # Start the task\n", taskName)
+	fmt.Printf("  taskd info %s     # View task info\n", taskName)
+	fmt.Printf("  taskd list        # List all tasks\n")
+}
+
+// displayConfigurationWarnings shows warnings for potentially problematic configurations
+func displayConfigurationWarnings(config *task.Config) {
+	warnings := []string{}
+	
+	// Check for common issues
+	if config.Stdout == "" && config.Stderr == "" {
+		warnings = append(warnings, "No output redirection configured - task output will be lost")
+	}
+	
+	if strings.Contains(strings.ToLower(config.Executable), "python") && config.Stdout != "" {
+		warnings = append(warnings, "Python output may be buffered - consider using 'python -u' for unbuffered output")
+	}
+	
+	if config.WorkDir == "" {
+		warnings = append(warnings, "No working directory specified - using current directory")
+	}
+	
+	// Display warnings if any
+	if len(warnings) > 0 {
+		fmt.Printf("\n")
+		fmt.Printf("Warnings:\n")
+		for _, warning := range warnings {
+			fmt.Printf("  * %s\n", warning)
+		}
+	}
 }
