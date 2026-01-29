@@ -81,9 +81,14 @@ func (m *DefaultIOManager) CreateTaskIO(config *Config) (*TaskIO, error) {
 			return nil, fmt.Errorf("invalid stdin path: %w", err)
 		}
 		
+		// Check file permissions before opening
+		if err := validateFilePermissions(stdinPath, "read"); err != nil {
+			return nil, fmt.Errorf("stdin file permission check failed: %w", err)
+		}
+		
 		file, err := os.Open(stdinPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open stdin file %s: %w", stdinPath, err)
+			return nil, fmt.Errorf("failed to open stdin file: %w", wrapFileError(err, stdinPath, "open"))
 		}
 		
 		taskIO.Stdin = file
@@ -110,9 +115,14 @@ func (m *DefaultIOManager) CreateTaskIO(config *Config) (*TaskIO, error) {
 			return nil, fmt.Errorf("failed to create stdout directory: %w", err)
 		}
 		
+		// Check disk space before creating file
+		if err := checkDiskSpace(filepath.Dir(stdoutPath), 1024); err != nil {
+			return nil, fmt.Errorf("stdout disk space check failed: %w", err)
+		}
+		
 		file, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open stdout file %s: %w", stdoutPath, err)
+			return nil, fmt.Errorf("failed to open stdout file: %w", wrapFileError(err, stdoutPath, "create"))
 		}
 		
 		stdoutWriter = file
@@ -140,9 +150,14 @@ func (m *DefaultIOManager) CreateTaskIO(config *Config) (*TaskIO, error) {
 				return nil, fmt.Errorf("failed to create stderr directory: %w", err)
 			}
 			
+			// Check disk space before creating file
+			if err := checkDiskSpace(filepath.Dir(stderrPath), 1024); err != nil {
+				return nil, fmt.Errorf("stderr disk space check failed: %w", err)
+			}
+			
 			file, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 			if err != nil {
-				return nil, fmt.Errorf("failed to open stderr file %s: %w", stderrPath, err)
+				return nil, fmt.Errorf("failed to open stderr file: %w", wrapFileError(err, stderrPath, "create"))
 			}
 			
 			stderrWriter = file
@@ -166,6 +181,15 @@ func (m *DefaultIOManager) GetTaskIOInfo(config *Config) (*TaskIOInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve stdin path: %w", err)
 		}
+		
+		// Validate that stdin file exists at runtime
+		if _, err := os.Stat(stdinPath); err != nil {
+			if os.IsNotExist(err) {
+				return nil, wrapFileError(err, stdinPath, "check stdin file")
+			}
+			return nil, wrapFileError(err, stdinPath, "access stdin file")
+		}
+		
 		info.StdinPath = stdinPath
 	}
 	

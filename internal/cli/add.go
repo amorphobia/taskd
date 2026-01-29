@@ -61,6 +61,11 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("invalid IO redirection: %w", err)
 		}
 		
+		// Check for configuration conflicts
+		if err := validateConfigurationConflicts(taskName, exec, stdin, stdout, stderr); err != nil {
+			return fmt.Errorf("configuration conflict: %w", err)
+		}
+		
 		taskConfig := &task.Config{
 			Name:       taskName,
 			Executable: exec,
@@ -194,6 +199,11 @@ func validateIOPaths(stdin, stdout, stderr, workdir string) error {
 			}
 			return fmt.Errorf("cannot access stdin file: %w", err)
 		}
+		
+		// Check read permissions
+		if err := task.ValidateFilePermissions(stdinPath, "read"); err != nil {
+			return fmt.Errorf("stdin file permission error: %w", err)
+		}
 	}
 	
 	// Validate stdout path if specified
@@ -208,6 +218,11 @@ func validateIOPaths(stdin, stdout, stderr, workdir string) error {
 		if err := validateOutputDirectory(stdoutDir); err != nil {
 			return fmt.Errorf("stdout directory error: %w", err)
 		}
+		
+		// Check write permissions for the file
+		if err := validateOutputFilePermissions(stdoutPath); err != nil {
+			return fmt.Errorf("stdout file permission error: %w", err)
+		}
 	}
 	
 	// Validate stderr path if specified
@@ -221,6 +236,11 @@ func validateIOPaths(stdin, stdout, stderr, workdir string) error {
 		stderrDir := filepath.Dir(stderrPath)
 		if err := validateOutputDirectory(stderrDir); err != nil {
 			return fmt.Errorf("stderr directory error: %w", err)
+		}
+		
+		// Check write permissions for the file
+		if err := validateOutputFilePermissions(stderrPath); err != nil {
+			return fmt.Errorf("stderr file permission error: %w", err)
 		}
 	}
 	
@@ -244,6 +264,101 @@ func validateOutputDirectory(dir string) error {
 	
 	if !info.IsDir() {
 		return fmt.Errorf("path exists but is not a directory: %s", dir)
+	}
+	
+	return nil
+}
+
+// validateOutputFilePermissions validates write permissions for output files
+func validateOutputFilePermissions(filePath string) error {
+	// Check if file exists
+	if _, err := os.Stat(filePath); err == nil {
+		// File exists, check if we can write to it
+		file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_APPEND, 0)
+		if err != nil {
+			return fmt.Errorf("cannot write to existing file %s: %w", filePath, err)
+		}
+		file.Close()
+		return nil
+	} else if os.IsNotExist(err) {
+		// File doesn't exist, check if we can create it
+		file, err := os.Create(filePath)
+		if err != nil {
+			return fmt.Errorf("cannot create file %s: %w", filePath, err)
+		}
+		file.Close()
+		os.Remove(filePath) // Clean up test file
+		return nil
+	} else {
+		return fmt.Errorf("cannot access file %s: %w", filePath, err)
+	}
+}
+
+// validateConfigurationConflicts checks for configuration conflicts
+func validateConfigurationConflicts(taskName, executable, stdin, stdout, stderr string) error {
+	// Check if task name conflicts with system commands
+	if err := validateTaskNameConflicts(taskName); err != nil {
+		return err
+	}
+	
+	// Check for IO redirection conflicts
+	if err := validateIOConflicts(stdin, stdout, stderr); err != nil {
+		return err
+	}
+	
+	// Check for executable conflicts
+	if err := validateExecutableConflicts(executable, stdin, stdout, stderr); err != nil {
+		return err
+	}
+	
+	return nil
+}
+
+// validateTaskNameConflicts checks if task name conflicts with existing tasks
+func validateTaskNameConflicts(taskName string) error {
+	// Check if task already exists
+	manager := task.GetManager()
+	if _, err := manager.GetTaskStatus(taskName); err == nil {
+		return fmt.Errorf("task '%s' already exists", taskName)
+	}
+	
+	return nil
+}
+
+// validateIOConflicts checks for IO redirection conflicts
+func validateIOConflicts(stdin, stdout, stderr string) error {
+	// Check if stdin is the same as stdout or stderr (would cause circular dependency)
+	if stdin != "" {
+		if stdin == stdout {
+			return fmt.Errorf("stdin and stdout cannot point to the same file: %s", stdin)
+		}
+		if stdin == stderr {
+			return fmt.Errorf("stdin and stderr cannot point to the same file: %s", stdin)
+		}
+	}
+	
+	// stdout and stderr pointing to the same file is allowed and handled properly
+	
+	return nil
+}
+
+// validateExecutableConflicts checks for conflicts between executable and IO redirection
+func validateExecutableConflicts(executable, stdin, stdout, stderr string) error {
+	// Check if executable might interfere with IO redirection
+	lowerExec := strings.ToLower(executable)
+	
+	// Warn about potentially problematic combinations
+	if strings.Contains(lowerExec, "cat") || strings.Contains(lowerExec, "type") {
+		if stdin == "" {
+			// This is just a warning, not an error
+			fmt.Printf("Warning: '%s' command without stdin redirection may wait for input\n", executable)
+		}
+	}
+	
+	if strings.Contains(lowerExec, "tee") {
+		if stdout != "" || stderr != "" {
+			fmt.Printf("Warning: 'tee' command with output redirection may cause duplicate output\n")
+		}
 	}
 	
 	return nil

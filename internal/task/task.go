@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -280,6 +281,12 @@ func (t *Task) monitorExistingProcess(process *os.Process) {
 func (t *Task) setupIO(cmd *exec.Cmd) error {
 	// Create task IO configuration
 	ioManager := GetIOManager()
+	
+	// Perform runtime validation before creating IO
+	if err := t.validateRuntimeIO(); err != nil {
+		return fmt.Errorf("runtime IO validation failed: %w", err)
+	}
+	
 	taskIO, err := ioManager.CreateTaskIO(t.config)
 	if err != nil {
 		return fmt.Errorf("failed to create task IO: %w", err)
@@ -297,6 +304,76 @@ func (t *Task) setupIO(cmd *exec.Cmd) error {
 	}
 	if taskIO.Stderr != nil {
 		cmd.Stderr = taskIO.Stderr
+	}
+	
+	return nil
+}
+
+// validateRuntimeIO performs runtime validation of IO configuration
+func (t *Task) validateRuntimeIO() error {
+	pathResolver := NewPathResolver()
+	
+	// Validate stdin file exists at runtime
+	if t.config.Stdin != "" {
+		stdinPath, err := pathResolver.ResolvePath(t.config.Stdin, t.config.WorkDir)
+		if err != nil {
+			return fmt.Errorf("failed to resolve stdin path: %w", err)
+		}
+		
+		// Check if file exists
+		info, err := os.Stat(stdinPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return &FileError{
+					Type:      FileErrorNotFound,
+					Path:      stdinPath,
+					Operation: "validate stdin file",
+				}
+			}
+			return wrapFileError(err, stdinPath, "validate stdin file")
+		}
+		
+		// Check if it's actually a file (not a directory)
+		if info.IsDir() {
+			return &FileError{
+				Type:      FileErrorIsDirectory,
+				Path:      stdinPath,
+				Operation: "validate stdin file",
+			}
+		}
+		
+		// Check read permissions
+		if err := ValidateFilePermissions(stdinPath, "read"); err != nil {
+			return fmt.Errorf("stdin file permission error: %w", err)
+		}
+	}
+	
+	// Validate output directories exist and are writable
+	if t.config.Stdout != "" {
+		stdoutPath, err := pathResolver.ResolvePath(t.config.Stdout, t.config.WorkDir)
+		if err != nil {
+			return fmt.Errorf("failed to resolve stdout path: %w", err)
+		}
+		
+		// Ensure parent directory exists and is writable
+		if err := pathResolver.EnsureDir(filepath.Dir(stdoutPath)); err != nil {
+			return fmt.Errorf("stdout directory validation failed: %w", err)
+		}
+	}
+	
+	if t.config.Stderr != "" {
+		stderrPath, err := pathResolver.ResolvePath(t.config.Stderr, t.config.WorkDir)
+		if err != nil {
+			return fmt.Errorf("failed to resolve stderr path: %w", err)
+		}
+		
+		// Skip directory check if stderr is the same as stdout (already checked)
+		if t.config.Stdout == "" || stderrPath != t.config.Stdout {
+			// Ensure parent directory exists and is writable
+			if err := pathResolver.EnsureDir(filepath.Dir(stderrPath)); err != nil {
+				return fmt.Errorf("stderr directory validation failed: %w", err)
+			}
+		}
 	}
 	
 	return nil
