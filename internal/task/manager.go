@@ -349,6 +349,34 @@ func GetTaskDetailInfo(name string) (*TaskDetailInfo, error) {
 	return manager.getTaskDetailInfo(name)
 }
 
+// ReloadTask reloads a task configuration from file
+func (m *Manager) ReloadTask(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	// Check if task exists
+	if _, exists := m.tasks[name]; !exists {
+		return fmt.Errorf("task '%s' does not exist", name)
+	}
+	
+	// Load configuration from file
+	configPath := filepath.Join(m.configDir, "tasks", name+".toml")
+	var config Config
+	
+	if _, err := toml.DecodeFile(configPath, &config); err != nil {
+		return fmt.Errorf("failed to load task configuration: %w", err)
+	}
+	
+	// Create new task instance
+	newTask := NewTask(&config)
+	newTask.SetExitCallback(m.onTaskExit)
+	
+	// Replace the existing task
+	m.tasks[name] = newTask
+	
+	return nil
+}
+
 func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
 	m.mu.RLock()
 	task, exists := m.tasks[name]
