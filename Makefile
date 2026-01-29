@@ -1,6 +1,6 @@
 # TaskD Makefile
 
-.PHONY: build clean test install dev fmt lint
+.PHONY: build clean test install dev fmt lint test-fixtures clean-fixtures
 
 # Variable definitions
 BINARY_NAME=taskd
@@ -25,12 +25,27 @@ dev:
 clean:
 	@echo "Cleaning build files..."
 	@rm -rf $(BUILD_DIR)
+	@rm -rf test/fixtures/bin
 	go clean
 
 # Test
 test:
 	@echo "Running tests..."
 	go test -v ./...
+
+# Build test fixtures
+test-fixtures:
+	@echo "Building test fixtures..."
+	@mkdir -p test/fixtures/bin
+	go build -o test/fixtures/bin/callback-test.exe test/fixtures/callback-test.go
+	go build -o test/fixtures/bin/debug-task.exe test/fixtures/debug-task.go
+	go build -o test/fixtures/bin/long-running.exe test/fixtures/long-running/main.go
+	go build -o test/fixtures/bin/quick-exit.exe test/fixtures/quick-exit/main.go
+
+# Clean test fixtures
+clean-fixtures:
+	@echo "Cleaning test fixtures..."
+	@rm -rf test/fixtures/bin
 
 # Format code
 fmt:
@@ -63,12 +78,14 @@ run:
 # Help
 help:
 	@echo "Available commands:"
-	@echo "  build     - Build executable"
-	@echo "  dev       - Development build"
-	@echo "  clean     - Clean build files"
-	@echo "  test      - Run tests"
-	@echo "  fmt       - Format code"
-	@echo "  lint      - Lint code"
-	@echo "  deps      - Install dependencies"
-	@echo "  build-all - Cross compile"
-	@echo "  run       - Run program"
+	@echo "  build         - Build executable"
+	@echo "  dev           - Development build"
+	@echo "  clean         - Clean build files"
+	@echo "  test          - Run tests"
+	@echo "  test-fixtures - Build test fixture programs"
+	@echo "  clean-fixtures- Clean test fixtures"
+	@echo "  fmt           - Format code"
+	@echo "  lint          - Lint code"
+	@echo "  deps          - Install dependencies"
+	@echo "  build-all     - Cross compile"
+	@echo "  run           - Run program"
