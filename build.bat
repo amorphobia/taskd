@@ -19,6 +19,8 @@ if /i "%1"=="build" call :build
 if /i "%1"=="dev" call :dev
 if /i "%1"=="clean" call :clean
 if /i "%1"=="test" call :test
+if /i "%1"=="test-fixtures" call :test-fixtures
+if /i "%1"=="clean-fixtures" call :clean-fixtures
 if /i "%1"=="fmt" call :fmt
 if /i "%1"=="lint" call :lint
 if /i "%1"=="deps" call :deps
@@ -44,12 +46,27 @@ goto :eof
 :clean
 echo Cleaning build files...
 if exist %BUILD_DIR% rmdir /s /q %BUILD_DIR%
+if exist test\fixtures\bin rmdir /s /q test\fixtures\bin
 go clean
 goto :eof
 
 :test
 echo Running tests...
 go test -v ./...
+goto :eof
+
+:test-fixtures
+echo Building test fixtures...
+if not exist test\fixtures\bin mkdir test\fixtures\bin
+go build -o test\fixtures\bin\callback-test.exe test\fixtures\callback-test.go
+go build -o test\fixtures\bin\debug-task.exe test\fixtures\debug-task.go
+go build -o test\fixtures\bin\long-running.exe test\fixtures\long-running\main.go
+go build -o test\fixtures\bin\quick-exit.exe test\fixtures\quick-exit\main.go
+goto :eof
+
+:clean-fixtures
+echo Cleaning test fixtures...
+if exist test\fixtures\bin rmdir /s /q test\fixtures\bin
 goto :eof
 
 :fmt
@@ -88,14 +105,16 @@ goto :eof
 
 :help
 echo Available commands:
-echo   build     - Build executable
-echo   dev       - Development build
-echo   clean     - Clean build files
-echo   test      - Run tests
-echo   fmt       - Format code
-echo   lint      - Lint code
-echo   deps      - Install dependencies
-echo   build-all - Cross compile
-echo   run       - Run program
-echo   help      - Show this help
+echo   build         - Build executable
+echo   dev           - Development build
+echo   clean         - Clean build files
+echo   test          - Run tests
+echo   test-fixtures - Build test fixture programs
+echo   clean-fixtures- Clean test fixtures
+echo   fmt           - Format code
+echo   lint          - Lint code
+echo   deps          - Install dependencies
+echo   build-all     - Cross compile
+echo   run           - Run program
+echo   help          - Show this help
 goto :eof
