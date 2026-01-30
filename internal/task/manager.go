@@ -35,6 +35,8 @@ type TaskRuntimeInfo struct {
 	Status    string    `json:"status"`
 	PID       int       `json:"pid"`
 	StartTime time.Time `json:"start_time"`
+	EndTime   time.Time `json:"end_time,omitempty"`
+	ExitCode  int       `json:"exit_code,omitempty"`
 }
 
 // GetManager get task manager singleton
@@ -336,19 +338,34 @@ func (m *Manager) cleanupRuntimeState() error {
 	// Load current state
 	state := m.loadRuntimeState()
 
-	// Check each task and remove if not actually running
-	cleanedTasks := make(map[string]*TaskRuntimeInfo)
+	// Update each task's runtime info instead of removing stopped tasks
+	updatedTasks := make(map[string]*TaskRuntimeInfo)
 	for name, info := range state.Tasks {
 		if task, exists := m.tasks[name]; exists {
-			// Check if task is actually running
-			if task.IsRunning() && task.GetRuntimeInfo() != nil {
-				cleanedTasks[name] = info
+			// Get current runtime info from the task
+			if currentInfo := task.GetRuntimeInfo(); currentInfo != nil {
+				updatedTasks[name] = currentInfo
+			} else {
+				// Keep the old info if we can't get current info
+				updatedTasks[name] = info
+			}
+		} else {
+			// Task no longer exists in manager, remove from runtime state
+			// This handles the case where tasks are deleted
+		}
+	}
+
+	// Add any new tasks that aren't in the runtime state yet
+	for name, task := range m.tasks {
+		if _, exists := updatedTasks[name]; !exists {
+			if runtimeInfo := task.GetRuntimeInfo(); runtimeInfo != nil {
+				updatedTasks[name] = runtimeInfo
 			}
 		}
 	}
 
-	// Save cleaned state
-	state.Tasks = cleanedTasks
+	// Save updated state
+	state.Tasks = updatedTasks
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal runtime state: %w", err)

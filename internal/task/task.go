@@ -18,6 +18,7 @@ type Task struct {
 	process   *os.Process
 	status    string
 	startTime time.Time
+	endTime   time.Time
 	exitCode  int
 	lastError string
 	mu        sync.RWMutex
@@ -151,6 +152,7 @@ func (t *Task) Stop() error {
 			if t.process.Signal(os.Kill) != nil {
 				// Process is already dead, update status
 				t.status = "stopped"
+				t.endTime = time.Now()
 				t.process = nil
 				t.exitCode = 0
 				t.lastError = ""
@@ -166,6 +168,7 @@ func (t *Task) Stop() error {
 		
 		// Update status immediately since we've terminated the process
 		t.status = "stopped"
+		t.endTime = time.Now()
 		t.process = nil
 		t.exitCode = -1 // Indicates forced termination
 		t.lastError = "Process terminated by user"
@@ -217,17 +220,21 @@ func (t *Task) GetRuntimeInfo() *TaskRuntimeInfo {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
-	// Only persist running tasks
-	if t.status != "running" || t.process == nil {
-		return nil
-	}
-	
-	return &TaskRuntimeInfo{
+	// Always return runtime info for all tasks
+	runtimeInfo := &TaskRuntimeInfo{
 		Name:      t.name,
 		Status:    t.status,
-		PID:       t.process.Pid,
 		StartTime: t.startTime,
+		EndTime:   t.endTime,
+		ExitCode:  t.exitCode,
 	}
+	
+	// Set PID only for running tasks
+	if t.status == "running" && t.process != nil {
+		runtimeInfo.PID = t.process.Pid
+	}
+	
+	return runtimeInfo
 }
 
 // restoreRuntimeState restore task state from persistence
@@ -235,24 +242,28 @@ func (t *Task) restoreRuntimeState(info *TaskRuntimeInfo) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	
+	// Restore basic information
+	t.status = info.Status
+	t.startTime = info.StartTime
+	t.endTime = info.EndTime
+	t.exitCode = info.ExitCode
+	
 	// Check if the process is still running
-	if info.PID > 0 {
+	if info.Status == "running" && info.PID > 0 {
 		if process, err := os.FindProcess(info.PID); err == nil {
 			// On Windows, FindProcess always succeeds even for non-existent PIDs
 			// We need to try to do something with the process to check if it's real
 			// For now, we'll assume the process might still be running
-			t.status = info.Status
-			t.startTime = info.StartTime
 			t.process = process
 			
 			// Start monitoring the process
 			go t.monitorExistingProcess(process)
 			return
 		}
+		// If we can't find the process, mark it as stopped
+		t.status = "stopped"
+		t.endTime = time.Now()
 	}
-	
-	// Process is not running, keep default stopped state
-	t.status = "stopped"
 }
 
 // monitorExistingProcess monitors an existing process
@@ -264,6 +275,7 @@ func (t *Task) monitorExistingProcess(process *os.Process) {
 	defer t.mu.Unlock()
 	
 	t.status = "stopped"
+	t.endTime = time.Now()
 	t.process = nil
 	
 	if err != nil {
@@ -388,6 +400,7 @@ func (t *Task) waitForExit(cmd *exec.Cmd) {
 	defer t.mu.Unlock()
 	
 	t.status = "stopped"
+	t.endTime = time.Now()
 	t.process = nil // Clear the process reference
 	
 	if err != nil {
