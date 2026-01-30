@@ -2,7 +2,8 @@
 
 # 简单的 Python 应用
 [simple-app]
-name = "simple-app"
+display_name = "Simple App"
+description = "A simple python application"
 executable = "python"
 args = ["app.py", "--port", "8080"]
 workdir = "/path/to/app"
@@ -26,7 +27,7 @@ compress = true
 
 # Node.js 服务
 [web-server]
-name = "web-server"
+display_name = "Web Server"
 executable = "node"
 args = ["server.js"]
 workdir = "/var/www/myapp"
@@ -43,7 +44,7 @@ delay = "10s"
 
 # 数据库备份任务
 [db-backup]
-name = "db-backup"
+display_name = "DB Backup"
 executable = "mysqldump"
 args = ["-u", "backup_user", "-p", "mydb"]
 workdir = "/backup"
@@ -57,7 +58,7 @@ policy = "never"
 
 # Windows 批处理脚本
 [cleanup-task]
-name = "cleanup-task"
+display_name = "Cleanup Task"
 executable = "cmd"
 args = ["/c", "cleanup.bat"]
 workdir = "C:\\temp"
@@ -68,7 +69,7 @@ auto_start = false
 
 # 带标准输入的任务
 [interactive-app]
-name = "interactive-app"
+display_name = "Interactive App"
 executable = "python"
 args = ["interactive.py"]
 workdir = "/apps/interactive"

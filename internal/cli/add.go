@@ -31,6 +31,8 @@ var addCmd = &cobra.Command{
 		stdin, _ := cmd.Flags().GetString("stdin")
 		stdout, _ := cmd.Flags().GetString("stdout")
 		stderr, _ := cmd.Flags().GetString("stderr")
+		displayName, _ := cmd.Flags().GetString("display-name")
+		description, _ := cmd.Flags().GetString("description")
 		
 		// Validate executable
 		if err := validateExecutable(exec); err != nil {
@@ -67,20 +69,21 @@ var addCmd = &cobra.Command{
 		}
 		
 		taskConfig := &task.Config{
-			Name:       taskName,
-			Executable: exec,
-			WorkDir:    workdir,
-			Env:        env,
-			InheritEnv: inheritEnv,
-			Stdin:      stdin,
-			Stdout:     stdout,
-			Stderr:     stderr,
+			DisplayName: displayName,
+			Description: description,
+			Executable:  exec,
+			WorkDir:     workdir,
+			Env:         env,
+			InheritEnv:  inheritEnv,
+			Stdin:       stdin,
+			Stdout:      stdout,
+			Stderr:      stderr,
 		}
 		
 		// Display configuration warnings before adding the task
 		displayConfigurationWarnings(taskConfig)
 		
-		if err := task.AddTask(taskConfig); err != nil {
+		if err := task.AddTask(taskName, taskConfig); err != nil {
 			return fmt.Errorf("failed to add task: %w", err)
 		}
 		
@@ -100,6 +103,8 @@ func init() {
 	addCmd.Flags().String("stdin", "", "standard input file")
 	addCmd.Flags().String("stdout", "", "standard output redirect file (relative paths resolved from working directory)")
 	addCmd.Flags().String("stderr", "", "standard error redirect file (relative paths resolved from working directory)")
+	addCmd.Flags().String("display-name", "", "display name for the task (optional)")
+	addCmd.Flags().String("description", "", "description of the task (optional)")
 	
 	addCmd.MarkFlagRequired("exec")
 }

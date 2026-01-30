@@ -34,6 +34,15 @@ func displayTaskInfo(info *task.TaskDetailInfo) {
 	// Display basic status information
 	fmt.Printf("Task Name:        %s\n", info.Name)
 	
+	// Display name and description if available
+	if info.DisplayName != "" {
+		fmt.Printf("Display Name:     %s\n", info.DisplayName)
+	}
+	
+	if info.Description != "" {
+		fmt.Printf("Description:      %s\n", info.Description)
+	}
+	
 	// Status with simple indicators
 	statusIndicator := getStatusIndicator(info.Status)
 	fmt.Printf("Status:           [%s] %s\n", statusIndicator, info.Status)

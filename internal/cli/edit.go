@@ -8,6 +8,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
+	taskdconfig "taskd/internal/config"
 	"taskd/internal/task"
 )
 
@@ -81,14 +82,16 @@ Examples:
 
 // EditConfig represents the configuration changes to apply
 type EditConfig struct {
-	Name       string
-	Executable *string   // pointer to distinguish between empty string and not set
-	WorkDir    *string
-	Env        []string
-	InheritEnv *bool
-	Stdin      *string
-	Stdout     *string
-	Stderr     *string
+	Name        string
+	DisplayName *string   // pointer to distinguish between empty string and not set
+	Description *string
+	Executable  *string   // pointer to distinguish between empty string and not set
+	WorkDir     *string
+	Env         []string
+	InheritEnv  *bool
+	Stdin       *string
+	Stdout      *string
+	Stderr      *string
 	
 	// Clear flags
 	ClearEnv    bool
@@ -100,6 +103,18 @@ type EditConfig struct {
 func parseEditFlags(cmd *cobra.Command, currentInfo *task.TaskDetailInfo) (*EditConfig, error) {
 	config := &EditConfig{
 		Name: currentInfo.Name,
+	}
+	
+	// Parse display name
+	if cmd.Flags().Changed("display-name") {
+		displayName, _ := cmd.Flags().GetString("display-name")
+		config.DisplayName = &displayName
+	}
+	
+	// Parse description
+	if cmd.Flags().Changed("description") {
+		description, _ := cmd.Flags().GetString("description")
+		config.Description = &description
 	}
 	
 	// Parse executable
@@ -154,7 +169,9 @@ func parseEditFlags(cmd *cobra.Command, currentInfo *task.TaskDetailInfo) (*Edit
 // hasAnyChanges checks if any changes were specified in the edit configuration
 func hasAnyChanges(config *EditConfig) bool {
 	// Check if any update flags were set
-	if config.Executable != nil ||
+	if config.DisplayName != nil ||
+		config.Description != nil ||
+		config.Executable != nil ||
 		config.WorkDir != nil ||
 		len(config.Env) > 0 ||
 		config.InheritEnv != nil ||
@@ -264,8 +281,7 @@ func validateEditConfig(config *EditConfig, currentInfo *task.TaskDetailInfo) er
 func applyTaskEdit(taskName string, editConfig *EditConfig) error {
 	// Load current task configuration from file
 	manager := task.GetManager()
-	configDir := getTaskConfigDir()
-	configPath := filepath.Join(configDir, "tasks", taskName+".toml")
+	configPath := filepath.Join(taskdconfig.GetTaskDTasksDir(), taskName+".toml")
 	
 	// Read current configuration
 	var currentConfig task.Config
@@ -280,6 +296,14 @@ func applyTaskEdit(taskName string, editConfig *EditConfig) error {
 	
 	// Apply changes
 	newConfig := currentConfig
+	
+	if editConfig.DisplayName != nil {
+		newConfig.DisplayName = *editConfig.DisplayName
+	}
+	
+	if editConfig.Description != nil {
+		newConfig.Description = *editConfig.Description
+	}
 	
 	if editConfig.Executable != nil {
 		newConfig.Executable = *editConfig.Executable
@@ -333,11 +357,6 @@ func applyTaskEdit(taskName string, editConfig *EditConfig) error {
 }
 
 // Helper functions
-func getTaskConfigDir() string {
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".taskd")
-}
-
 func loadTaskConfig(configPath string, config *task.Config) error {
 	if _, err := toml.DecodeFile(configPath, config); err != nil {
 		return fmt.Errorf("failed to decode TOML file: %w", err)
@@ -370,6 +389,8 @@ func init() {
 	rootCmd.AddCommand(editCmd)
 	
 	// Configuration flags
+	editCmd.Flags().String("display-name", "", "update display name for the task")
+	editCmd.Flags().String("description", "", "update description of the task")
 	editCmd.Flags().StringP("exec", "e", "", "update executable path and arguments")
 	editCmd.Flags().StringP("workdir", "w", "", "update working directory")
 	editCmd.Flags().StringSliceP("env", "E", nil, "update environment variables (format: KEY=VALUE, replaces all existing)")

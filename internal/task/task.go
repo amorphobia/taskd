@@ -13,6 +13,7 @@ import (
 
 // Task task instance
 type Task struct {
+	name      string
 	config    *Config
 	process   *os.Process
 	status    string
@@ -27,9 +28,10 @@ type Task struct {
 }
 
 // NewTask create a new task
-func NewTask(config *Config) *Task {
+func NewTask(name string, config *Config) *Task {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Task{
+		name:   name,
 		config: config,
 		status: "stopped",
 		ctx:    ctx,
@@ -193,7 +195,7 @@ func (t *Task) GetInfo() *TaskInfo {
 	}
 	
 	return &TaskInfo{
-		Name:       t.config.Name,
+		Name:       t.name,
 		Status:     t.status,
 		PID:        pid,
 		StartTime:  t.startTime.Format("2006-01-02 15:04:05"),
@@ -221,7 +223,7 @@ func (t *Task) GetRuntimeInfo() *TaskRuntimeInfo {
 	}
 	
 	return &TaskRuntimeInfo{
-		Name:      t.config.Name,
+		Name:      t.name,
 		Status:    t.status,
 		PID:       t.process.Pid,
 		StartTime: t.startTime,
@@ -274,7 +276,7 @@ func (t *Task) monitorExistingProcess(process *os.Process) {
 	
 	// Notify manager to update runtime state when task exits
 	if t.onExit != nil {
-		t.onExit(t.config.Name)
+		t.onExit(t.name)
 	}
 }
 
@@ -412,6 +414,6 @@ func (t *Task) waitForExit(cmd *exec.Cmd) {
 	// Notify manager to update runtime state when task exits
 	// We need a way to callback to the manager to update the runtime state
 	if t.onExit != nil {
-		t.onExit(t.config.Name)
+		t.onExit(t.name)
 	}
 }

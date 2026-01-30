@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,9 +51,9 @@ func GetManager() *Manager {
 }
 
 // AddTask add a task
-func AddTask(config *Config) error {
+func AddTask(taskName string, config *Config) error {
 	manager := GetManager()
-	return manager.addTask(config)
+	return manager.addTask(taskName, config)
 }
 
 // ListTasks list all tasks
@@ -85,17 +86,17 @@ func RemoveTask(name string) error {
 	return manager.removeTask(name)
 }
 
-func (m *Manager) addTask(config *Config) error {
+func (m *Manager) addTask(taskName string, config *Config) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	// Check if task already exists
-	if _, exists := m.tasks[config.Name]; exists {
-		return fmt.Errorf("task '%s' already exists", config.Name)
+	if _, exists := m.tasks[taskName]; exists {
+		return fmt.Errorf("task '%s' already exists", taskName)
 	}
 
 	// Save configuration file
-	configPath := filepath.Join(taskdconfig.GetTaskDTasksDir(), config.Name+".toml")
+	configPath := filepath.Join(taskdconfig.GetTaskDTasksDir(), taskName+".toml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
@@ -111,10 +112,10 @@ func (m *Manager) addTask(config *Config) error {
 	}
 
 	// Create task instance
-	task := NewTask(config)
+	task := NewTask(taskName, config)
 	// Set exit callback to update runtime state when task exits
 	task.SetExitCallback(m.onTaskExit)
-	m.tasks[config.Name] = task
+	m.tasks[taskName] = task
 
 	return nil
 }
@@ -278,17 +279,20 @@ func (m *Manager) loadTasks() error {
 				continue // skip invalid config files
 			}
 
+			// Extract task name from filename (remove .toml extension)
+			taskName := strings.TrimSuffix(entry.Name(), ".toml")
+
 			// Create task instance
-			task := NewTask(&config)
+			task := NewTask(taskName, &config)
 			// Set exit callback to update runtime state when task exits
 			task.SetExitCallback(m.onTaskExit)
 
 			// Restore runtime state if available
-			if runtimeInfo, exists := runtimeState.Tasks[config.Name]; exists {
+			if runtimeInfo, exists := runtimeState.Tasks[taskName]; exists {
 				task.restoreRuntimeState(runtimeInfo)
 			}
 
-			m.tasks[config.Name] = task
+			m.tasks[taskName] = task
 		}
 	}
 
@@ -398,7 +402,7 @@ func (m *Manager) ReloadTask(name string) error {
 	}
 
 	// Create new task instance
-	newTask := NewTask(&config)
+	newTask := NewTask(name, &config)
 	newTask.SetExitCallback(m.onTaskExit)
 
 	// Replace the existing task
@@ -428,18 +432,20 @@ func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
 
 	// Create detailed info
 	detailInfo := &TaskDetailInfo{
-		Name:       basicInfo.Name,
-		Status:     basicInfo.Status,
-		PID:        basicInfo.PID,
-		StartTime:  basicInfo.StartTime,
-		Executable: basicInfo.Executable,
-		ExitCode:   basicInfo.ExitCode,
-		LastError:  basicInfo.LastError,
-		WorkDir:    task.config.WorkDir,
-		Args:       task.config.Args,
-		Env:        task.config.Env,
-		InheritEnv: task.config.InheritEnv,
-		IOInfo:     ioInfo,
+		Name:        basicInfo.Name,
+		Status:      basicInfo.Status,
+		PID:         basicInfo.PID,
+		StartTime:   basicInfo.StartTime,
+		Executable:  basicInfo.Executable,
+		ExitCode:    basicInfo.ExitCode,
+		LastError:   basicInfo.LastError,
+		DisplayName: task.config.DisplayName,
+		Description: task.config.Description,
+		WorkDir:     task.config.WorkDir,
+		Args:        task.config.Args,
+		Env:         task.config.Env,
+		InheritEnv:  task.config.InheritEnv,
+		IOInfo:      ioInfo,
 	}
 
 	return detailInfo, nil

@@ -2,18 +2,19 @@ package task
 
 // Config task configuration structure
 type Config struct {
-	Name       string            `toml:"name"`
-	Executable string            `toml:"executable"`
-	Args       []string          `toml:"args,omitempty"`
-	WorkDir    string            `toml:"workdir,omitempty"`
-	Env        []string          `toml:"env,omitempty"`
-	InheritEnv bool              `toml:"inherit_env"`
-	Stdin      string            `toml:"stdin,omitempty"`
-	Stdout     string            `toml:"stdout,omitempty"`
-	Stderr     string            `toml:"stderr,omitempty"`
-	AutoStart  bool              `toml:"auto_start"`
-	Restart    RestartPolicy     `toml:"restart,omitempty"`
-	Log        LogConfig         `toml:"log,omitempty"`
+	DisplayName string            `toml:"display_name,omitempty"`
+	Description string            `toml:"description,omitempty"`
+	Executable  string            `toml:"executable"`
+	Args        []string          `toml:"args,omitempty"`
+	WorkDir     string            `toml:"workdir,omitempty"`
+	Env         []string          `toml:"env,omitempty"`
+	InheritEnv  bool              `toml:"inherit_env"`
+	Stdin       string            `toml:"stdin,omitempty"`
+	Stdout      string            `toml:"stdout,omitempty"`
+	Stderr      string            `toml:"stderr,omitempty"`
+	AutoStart   bool              `toml:"auto_start"`
+	Restart     RestartPolicy     `toml:"restart,omitempty"`
+	Log         LogConfig         `toml:"log,omitempty"`
 }
 
 // RestartPolicy restart policy configuration
@@ -53,10 +54,12 @@ type TaskDetailInfo struct {
 	LastError  string `json:"last_error,omitempty"`
 	
 	// Extended configuration information
-	WorkDir    string   `json:"work_dir"`
-	Args       []string `json:"args,omitempty"`
-	Env        []string `json:"env,omitempty"`
-	InheritEnv bool     `json:"inherit_env"`
+	DisplayName string   `json:"display_name,omitempty"`
+	Description string   `json:"description,omitempty"`
+	WorkDir     string   `json:"work_dir"`
+	Args        []string `json:"args,omitempty"`
+	Env         []string `json:"env,omitempty"`
+	InheritEnv  bool     `json:"inherit_env"`
 	
 	// IO redirection information
 	IOInfo     *TaskIOInfo `json:"io_info"`

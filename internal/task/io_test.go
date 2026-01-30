@@ -30,7 +30,6 @@ func TestDefaultIOManager_CreateTaskIO(t *testing.T) {
 		{
 			name: "no IO redirection",
 			config: &Config{
-				Name:       "test-task",
 				Executable: "echo",
 				WorkDir:    tempDir,
 			},
@@ -39,7 +38,6 @@ func TestDefaultIOManager_CreateTaskIO(t *testing.T) {
 		{
 			name: "stdout redirection only",
 			config: &Config{
-				Name:       "test-task",
 				Executable: "echo",
 				WorkDir:    tempDir,
 				Stdout:     "output.log",
@@ -49,7 +47,6 @@ func TestDefaultIOManager_CreateTaskIO(t *testing.T) {
 		{
 			name: "stderr redirection only",
 			config: &Config{
-				Name:       "test-task",
 				Executable: "echo",
 				WorkDir:    tempDir,
 				Stderr:     "error.log",
@@ -59,7 +56,6 @@ func TestDefaultIOManager_CreateTaskIO(t *testing.T) {
 		{
 			name: "stdin redirection",
 			config: &Config{
-				Name:       "test-task",
 				Executable: "cat",
 				WorkDir:    tempDir,
 				Stdin:      "input.txt",
@@ -69,7 +65,6 @@ func TestDefaultIOManager_CreateTaskIO(t *testing.T) {
 		{
 			name: "all IO redirection",
 			config: &Config{
-				Name:       "test-task",
 				Executable: "cat",
 				WorkDir:    tempDir,
 				Stdin:      "input.txt",
@@ -81,7 +76,6 @@ func TestDefaultIOManager_CreateTaskIO(t *testing.T) {
 		{
 			name: "stdout and stderr to same file",
 			config: &Config{
-				Name:       "test-task",
 				Executable: "echo",
 				WorkDir:    tempDir,
 				Stdout:     "combined.log",
@@ -92,7 +86,6 @@ func TestDefaultIOManager_CreateTaskIO(t *testing.T) {
 		{
 			name: "invalid stdin file",
 			config: &Config{
-				Name:       "test-task",
 				Executable: "cat",
 				WorkDir:    tempDir,
 				Stdin:      "nonexistent.txt",
@@ -102,7 +95,6 @@ func TestDefaultIOManager_CreateTaskIO(t *testing.T) {
 		{
 			name: "invalid stdout path",
 			config: &Config{
-				Name:       "test-task",
 				Executable: "echo",
 				WorkDir:    tempDir,
 				Stdout:     "CON", // Windows reserved name
@@ -175,7 +167,6 @@ func TestTaskIO_Close(t *testing.T) {
 	}
 	
 	config := &Config{
-		Name:       "test-task",
 		Executable: "cat",
 		WorkDir:    tempDir,
 		Stdin:      "input.txt",
