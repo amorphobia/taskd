@@ -96,14 +96,17 @@ taskd add web-app --exec "python app.py" --workdir "C:\myapp"
 # 启动任务
 taskd start web-app
 
-# 查看状态
-taskd status web-app
+# 查看详细信息
+taskd info web-app
 
 # 列出所有任务
 taskd list
 
 # 停止任务
 taskd stop web-app
+
+# 删除任务
+taskd del web-app
 ```
 
 ## 配置文件示例

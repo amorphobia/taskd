@@ -32,6 +32,9 @@ taskd list
 
 # Stop task
 taskd stop mytask
+
+# Delete task (stops if running and removes configuration)
+taskd del mytask
 ```
 
 ## Output Redirection

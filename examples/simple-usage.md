@@ -32,6 +32,9 @@ taskd list --running
 
 # 停止任务
 taskd stop web-app
+
+# 删除任务（如果正在运行会先停止，然后删除配置文件）
+taskd del web-app
 ```
 
 ### 3. 查看帮助
@@ -44,6 +47,27 @@ taskd --help
 taskd add --help
 taskd list --help
 ```
+
+### 4. 任务删除
+
+```bash
+# 删除已停止的任务
+taskd del web-app
+
+# 删除正在运行的任务（会先自动停止）
+taskd del running-task
+
+# 删除多个任务
+taskd del task1
+taskd del task2
+taskd del task3
+```
+
+**注意事项：**
+- 删除任务会永久移除任务配置文件
+- 如果任务正在运行，会先自动停止任务
+- 删除操作不可恢复，请谨慎使用
+- 删除任务不会影响任务产生的输出文件
 
 ## 输出重定向功能
 

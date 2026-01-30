@@ -79,6 +79,12 @@ func GetTaskStatus(name string) (*TaskInfo, error) {
 	return manager.getTaskStatus(name)
 }
 
+// RemoveTask remove a task
+func RemoveTask(name string) error {
+	manager := GetManager()
+	return manager.removeTask(name)
+}
+
 func (m *Manager) addTask(config *Config) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -139,6 +145,11 @@ func (m *Manager) StopTask(name string) error {
 // RestartTask restart a task by name (stop if running, then start)
 func (m *Manager) RestartTask(name string) error {
 	return m.restartTask(name)
+}
+
+// RemoveTask remove a task by name
+func (m *Manager) RemoveTask(name string) error {
+	return m.removeTask(name)
 }
 
 // GetTaskStatus get task status by name
@@ -217,6 +228,31 @@ func (m *Manager) restartTask(name string) error {
 		m.saveRuntimeState()
 	}
 	return err
+}
+
+func (m *Manager) removeTask(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	task, exists := m.tasks[name]
+	if !exists {
+		return fmt.Errorf("task '%s' does not exist", name)
+	}
+
+	// Stop the task if it's running
+	if task.IsRunning() {
+		if err := task.Stop(); err != nil {
+			return fmt.Errorf("failed to stop task before removal: %w", err)
+		}
+	}
+
+	// Remove the task from the manager
+	delete(m.tasks, name)
+
+	// Save runtime state after removal
+	m.saveRuntimeState()
+
+	return nil
 }
 
 func (m *Manager) loadTasks() error {
