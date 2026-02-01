@@ -5,8 +5,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"taskd/internal/cli"
+	"taskd/internal/task"
 )
 
 func main() {
@@ -29,24 +31,18 @@ func main() {
 func runDaemonMode() {
 	fmt.Println("Starting TaskD daemon...")
 	
-	// TODO: Initialize task monitor
-	// monitor := &TaskMonitor{
-	//     checkInterval: 5 * time.Second,
-	//     stopChan:      make(chan struct{}),
-	// }
+	// Initialize task monitor with 5 second check interval
+	monitor := task.NewTaskMonitor(5 * time.Second)
 	
 	// Set up signal handling for graceful shutdown
-	setupSignalHandling()
+	setupSignalHandling(monitor)
 	
-	// TODO: Start monitoring
-	// monitor.Start()
-	
-	// For now, just run indefinitely
-	select {}
+	// Start monitoring
+	monitor.Start()
 }
 
 // setupSignalHandling sets up signal handling for graceful daemon shutdown
-func setupSignalHandling() {
+func setupSignalHandling(monitor *task.TaskMonitor) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	
@@ -54,8 +50,8 @@ func setupSignalHandling() {
 		sig := <-sigChan
 		fmt.Printf("Received signal %v, shutting down daemon...\n", sig)
 		
-		// TODO: Stop monitoring gracefully
-		// monitor.Stop()
+		// Stop monitoring gracefully
+		monitor.Stop()
 		
 		os.Exit(0)
 	}()

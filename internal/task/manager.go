@@ -207,6 +207,8 @@ func (m *Manager) startTask(name string) error {
 
 	err := task.Start()
 	if err == nil {
+		// Reset retry count when manually starting a task
+		m.resetTaskRetryCount(name)
 		// Save runtime state after successful start
 		m.saveRuntimeState()
 	}
@@ -380,6 +382,8 @@ func (m *Manager) restartTask(name string) error {
 	// Start the task
 	err := task.Start()
 	if err == nil {
+		// Reset retry count when manually restarting a task
+		m.resetTaskRetryCount(name)
 		// Save runtime state after successful restart
 		m.saveRuntimeState()
 	}
@@ -640,4 +644,25 @@ func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
 	}
 
 	return detailInfo, nil
+}
+
+// resetTaskRetryCount 重置任务的重试计数
+func (m *Manager) resetTaskRetryCount(taskName string) {
+	state := m.loadRuntimeState()
+	if state.Tasks == nil {
+		return
+	}
+	
+	runtimeInfo, exists := state.Tasks[taskName]
+	if !exists {
+		return
+	}
+	
+	// 重置重试计数
+	runtimeInfo.RetryNum = 0
+	
+	// 保存更新后的状态
+	if err := m.saveRuntimeStateWithData(state); err != nil {
+		fmt.Printf("Warning: Failed to reset retry count for task %s: %v\n", taskName, err)
+	}
 }
