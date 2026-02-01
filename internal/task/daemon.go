@@ -14,7 +14,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// TaskMonitor 任务监控器（在守护进程中运行）
+// TaskMonitor task monitor (runs in daemon process)
 type TaskMonitor struct {
 	checkInterval time.Duration
 	stopChan      chan struct{}
@@ -33,7 +33,7 @@ func NewTaskMonitor(checkInterval time.Duration) *TaskMonitor {
 	}
 }
 
-// Start 启动监控循环
+// Start starts the monitoring loop
 func (tm *TaskMonitor) Start() {
 	tm.mu.Lock()
 	if tm.isRunning {
@@ -62,7 +62,7 @@ func (tm *TaskMonitor) Start() {
 	}
 }
 
-// Stop 停止监控循环
+// Stop stops the monitoring loop
 func (tm *TaskMonitor) Stop() {
 	tm.mu.RLock()
 	if !tm.isRunning {
@@ -74,34 +74,34 @@ func (tm *TaskMonitor) Stop() {
 	close(tm.stopChan)
 }
 
-// IsRunning 检查监控器是否正在运行
+// IsRunning checks if the monitor is running
 func (tm *TaskMonitor) IsRunning() bool {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
 	return tm.isRunning
 }
 
-// checkAndRestartTasks 检查并重启任务
+// checkAndRestartTasks checks and restarts tasks
 func (tm *TaskMonitor) checkAndRestartTasks() {
-	// 1. 读取 runtime.json 获取当前状态
+	// 1. Read runtime.json to get current state
 	state := tm.manager.loadRuntimeState()
 	if state.Tasks == nil {
 		return
 	}
 	
-	// 2. 检查每个任务的状态
+	// 2. Check status of each task
 	for taskName, runtimeInfo := range state.Tasks {
-		// 跳过守护进程本身
+		// Skip daemon itself
 		if taskName == "taskd" {
 			continue
 		}
 		
-		// 只检查标记为运行中的任务
+		// Only check tasks marked as running
 		if runtimeInfo.Status == "running" {
 			tm.checkTaskProcess(taskName, runtimeInfo)
 		}
 		
-		// 检查是否需要自动重启
+		// Check if auto-restart is needed
 		if tm.shouldRetryTask(taskName, runtimeInfo) {
 			tm.retryTask(taskName)
 		} else if tm.shouldLogRetryLimitReached(taskName, runtimeInfo) {
@@ -110,7 +110,7 @@ func (tm *TaskMonitor) checkAndRestartTasks() {
 	}
 }
 
-// checkTaskProcess 检查单个任务的进程状态
+// checkTaskProcess checks the process status of a single task
 func (tm *TaskMonitor) checkTaskProcess(taskName string, runtimeInfo *TaskRuntimeInfo) {
 	checker := NewProcessChecker()
 	status, err := checker.CheckTaskProcess(runtimeInfo.PID)
@@ -121,31 +121,31 @@ func (tm *TaskMonitor) checkTaskProcess(taskName string, runtimeInfo *TaskRuntim
 		return
 	}
 	
-	// 如果进程不存在，更新任务状态为已停止
+	// If process doesn't exist, update task status to stopped
 	if !status.Exists {
 		fmt.Printf("TaskMonitor: Task %s (PID %d) process no longer exists, updating status\n", 
 			taskName, runtimeInfo.PID)
 		
-		// 尝试获取退出码
+		// Try to get exit code
 		exitCode := tm.getProcessExitCode(runtimeInfo.PID)
 		tm.updateTaskExitedStatus(taskName, runtimeInfo, exitCode)
 	}
 }
 
-// getProcessExitCode 尝试获取进程的退出码
+// getProcessExitCode tries to get the exit code of a process
 func (tm *TaskMonitor) getProcessExitCode(pid int) int {
 	checker := NewProcessChecker()
 	exitCode, err := checker.GetProcessExitCode(pid)
 	if err != nil {
-		// 无法获取退出码，使用默认值
+		// Cannot get exit code, use default value
 		return 0
 	}
 	return exitCode
 }
 
-// updateTaskExitedStatus 更新已退出任务的状态
+// updateTaskExitedStatus updates the status of an exited task
 func (tm *TaskMonitor) updateTaskExitedStatus(taskName string, runtimeInfo *TaskRuntimeInfo, exitCode int) {
-	// 创建更新后的状态信息
+	// Create updated status info
 	updatedInfo := &TaskRuntimeInfo{
 		Name:           taskName,
 		Status:         "stopped",
@@ -153,11 +153,11 @@ func (tm *TaskMonitor) updateTaskExitedStatus(taskName string, runtimeInfo *Task
 		StartTime:      runtimeInfo.StartTime,
 		EndTime:        time.Now(),
 		ExitCode:       exitCode,
-		StoppedByTaskd: false, // 进程自然退出，不是用户停止
-		RetryNum:       runtimeInfo.RetryNum, // 保持重试计数
+		StoppedByTaskd: false, // Process exited naturally, not stopped by user
+		RetryNum:       runtimeInfo.RetryNum, // Keep retry count
 	}
 	
-	// 更新运行时状态
+	// Update runtime state
 	state := tm.manager.loadRuntimeState()
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
@@ -171,7 +171,7 @@ func (tm *TaskMonitor) updateTaskExitedStatus(taskName string, runtimeInfo *Task
 	}
 }
 
-// updateTaskState 通用的任务状态更新方法
+// updateTaskState generic method for updating task state
 func (tm *TaskMonitor) updateTaskState(taskName string, updatedInfo *TaskRuntimeInfo) error {
 	state := tm.manager.loadRuntimeState()
 	if state.Tasks == nil {
@@ -187,38 +187,38 @@ func (tm *TaskMonitor) updateTaskState(taskName string, updatedInfo *TaskRuntime
 	return nil
 }
 
-// shouldRetryTask 判断任务是否应该自动重启
+// shouldRetryTask determines if a task should be auto-restarted
 func (tm *TaskMonitor) shouldRetryTask(taskName string, runtimeInfo *TaskRuntimeInfo) bool {
-	// 跳过守护进程本身
+	// Skip daemon itself
 	if taskName == "taskd" {
 		return false
 	}
 	
-	// 获取任务配置
+	// Get task configuration
 	config := tm.getTaskConfig(taskName)
 	if config == nil {
 		return false
 	}
 	
-	// 检查重启条件：
-	// 1. 任务配置中 auto_start = true
-	// 2. 任务状态为已停止
-	// 3. stopped_by_taskd = false（非用户主动停止）
-	// 4. retry_num < max_retry_num（未达到重试上限）
+	// Check restart conditions:
+	// 1. Task configuration has auto_start = true
+	// 2. Task status is stopped
+	// 3. stopped_by_taskd = false (not manually stopped by user)
+	// 4. retry_num < max_retry_num (hasn't reached retry limit)
 	return config.AutoStart &&
 		runtimeInfo.Status == "stopped" &&
 		!runtimeInfo.StoppedByTaskd &&
 		(config.MaxRetryNum <= 0 || runtimeInfo.RetryNum < config.MaxRetryNum)
 }
 
-// getTaskConfig 获取任务配置
+// getTaskConfig gets task configuration
 func (tm *TaskMonitor) getTaskConfig(taskName string) *Config {
-	// 检查是否为内置任务
+	// Check if it's a builtin task
 	if tm.manager.builtinHandler.IsBuiltinTask(taskName) {
 		return tm.manager.builtinHandler.GetBuiltinTaskConfig(taskName)
 	}
 	
-	// 从文件加载普通任务配置
+	// Load regular task configuration from file
 	configPath := filepath.Join(config.GetTaskDTasksDir(), taskName+".toml")
 	var taskConfig Config
 	
@@ -230,18 +230,18 @@ func (tm *TaskMonitor) getTaskConfig(taskName string) *Config {
 	return &taskConfig
 }
 
-// retryTask 执行任务自动重启
+// retryTask performs task auto-restart
 func (tm *TaskMonitor) retryTask(taskName string) {
 	fmt.Printf("TaskMonitor: Attempting to restart task %s\n", taskName)
 	
-	// 1. 启动任务
+	// 1. Start the task
 	if err := tm.manager.StartTask(taskName); err != nil {
 		fmt.Printf("TaskMonitor: Failed to restart task %s: %v\n", taskName, err)
 		tm.handleRetryFailure(taskName, err)
 		return
 	}
 	
-	// 2. 更新重试计数
+	// 2. Update retry count
 	if err := tm.incrementRetryCount(taskName); err != nil {
 		fmt.Printf("TaskMonitor: Failed to update retry count for task %s: %v\n", taskName, err)
 	}
@@ -249,7 +249,7 @@ func (tm *TaskMonitor) retryTask(taskName string) {
 	fmt.Printf("TaskMonitor: Successfully restarted task %s\n", taskName)
 }
 
-// incrementRetryCount 递增重试计数
+// incrementRetryCount increments the retry count
 func (tm *TaskMonitor) incrementRetryCount(taskName string) error {
 	state := tm.manager.loadRuntimeState()
 	if state.Tasks == nil {
@@ -261,61 +261,61 @@ func (tm *TaskMonitor) incrementRetryCount(taskName string) error {
 		return fmt.Errorf("task %s not found in runtime state", taskName)
 	}
 	
-	// 递增重试计数
+	// Increment retry count
 	runtimeInfo.RetryNum++
 	
-	// 保存更新后的状态
+	// Save updated state
 	return tm.manager.saveRuntimeStateWithData(state)
 }
 
-// handleRetryFailure 处理重启失败
+// handleRetryFailure handles restart failure
 func (tm *TaskMonitor) handleRetryFailure(taskName string, err error) {
-	// 记录错误信息，但不影响其他任务的监控
+	// Log error info, but don't affect monitoring of other tasks
 	fmt.Printf("TaskMonitor: Retry failed for task %s: %v\n", taskName, err)
 	
-	// 更新任务状态，标记重启失败
+	// Update task status, mark restart failure
 	state := tm.manager.loadRuntimeState()
 	if state.Tasks != nil {
 		if runtimeInfo, exists := state.Tasks[taskName]; exists {
-			// 创建失败状态信息
+			// Create failure status info
 			failedInfo := &TaskRuntimeInfo{
 				Name:           taskName,
 				Status:         "stopped",
 				PID:            0,
 				StartTime:      runtimeInfo.StartTime,
 				EndTime:        time.Now(),
-				ExitCode:       -1, // 使用 -1 表示重启失败
+				ExitCode:       -1, // Use -1 to indicate restart failure
 				StoppedByTaskd: false,
-				RetryNum:       runtimeInfo.RetryNum, // 保持当前重试计数
+				RetryNum:       runtimeInfo.RetryNum, // Keep current retry count
 			}
 			
-			// 更新状态
+			// Update state
 			if updateErr := tm.updateTaskState(taskName, failedInfo); updateErr != nil {
 				fmt.Printf("TaskMonitor: Failed to update task state after retry failure: %v\n", updateErr)
 			}
 		}
 	}
 	
-	// 可以在这里添加更多的错误处理逻辑，比如：
-	// - 记录到日志文件
-	// - 发送通知
-	// - 触发告警
+	// Additional error handling logic can be added here, such as:
+	// - Log to file
+	// - Send notifications
+	// - Trigger alerts
 }
 
-// shouldLogRetryLimitReached 检查是否应该记录重试上限达到的信息
+// shouldLogRetryLimitReached checks if retry limit reached info should be logged
 func (tm *TaskMonitor) shouldLogRetryLimitReached(taskName string, runtimeInfo *TaskRuntimeInfo) bool {
-	// 跳过守护进程本身
+	// Skip daemon itself
 	if taskName == "taskd" {
 		return false
 	}
 	
-	// 获取任务配置
+	// Get task configuration
 	config := tm.getTaskConfig(taskName)
 	if config == nil {
 		return false
 	}
 	
-	// 检查是否为自动启动任务且已达到重试上限
+	// Check if it's an auto-start task that has reached retry limit
 	return config.AutoStart &&
 		runtimeInfo.Status == "stopped" &&
 		!runtimeInfo.StoppedByTaskd &&
@@ -323,7 +323,7 @@ func (tm *TaskMonitor) shouldLogRetryLimitReached(taskName string, runtimeInfo *
 		runtimeInfo.RetryNum >= config.MaxRetryNum
 }
 
-// logRetryLimitReached 记录重试上限达到的信息
+// logRetryLimitReached logs retry limit reached info
 func (tm *TaskMonitor) logRetryLimitReached(taskName string, runtimeInfo *TaskRuntimeInfo) {
 	config := tm.getTaskConfig(taskName)
 	if config == nil {
@@ -334,7 +334,7 @@ func (tm *TaskMonitor) logRetryLimitReached(taskName string, runtimeInfo *TaskRu
 		taskName, runtimeInfo.RetryNum, config.MaxRetryNum)
 }
 
-// StateUpdater 状态更新接口
+// StateUpdater state update interface
 type StateUpdater interface {
 	UpdateTaskState(name string, info *TaskRuntimeInfo) error
 	UpdateDaemonState(status *DaemonStatus) error
@@ -342,20 +342,20 @@ type StateUpdater interface {
 	SaveRuntimeState(state *RuntimeState) error
 }
 
-// FileStateManager 文件状态管理器
+// FileStateManager file state manager
 type FileStateManager struct {
 	statePath string
 	mu        sync.RWMutex
 }
 
-// NewFileStateManager 创建新的文件状态管理器
+// NewFileStateManager creates a new file state manager
 func NewFileStateManager(statePath string) *FileStateManager {
 	return &FileStateManager{
 		statePath: statePath,
 	}
 }
 
-// UpdateTaskState 更新任务状态
+// UpdateTaskState updates task state
 func (fsm *FileStateManager) UpdateTaskState(name string, info *TaskRuntimeInfo) error {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
@@ -374,9 +374,9 @@ func (fsm *FileStateManager) UpdateTaskState(name string, info *TaskRuntimeInfo)
 	return fsm.saveRuntimeStateUnsafe(state)
 }
 
-// UpdateDaemonState 更新守护进程状态
+// UpdateDaemonState updates daemon state
 func (fsm *FileStateManager) UpdateDaemonState(status *DaemonStatus) error {
-	// 将 DaemonStatus 转换为 TaskRuntimeInfo
+	// Convert DaemonStatus to TaskRuntimeInfo
 	daemonInfo := &TaskRuntimeInfo{
 		Name:           "taskd",
 		Status:         "stopped",
@@ -393,7 +393,7 @@ func (fsm *FileStateManager) UpdateDaemonState(status *DaemonStatus) error {
 	return fsm.UpdateTaskState("taskd", daemonInfo)
 }
 
-// GetRuntimeState 获取运行时状态
+// GetRuntimeState gets runtime state
 func (fsm *FileStateManager) GetRuntimeState() (*RuntimeState, error) {
 	fsm.mu.RLock()
 	defer fsm.mu.RUnlock()
@@ -401,7 +401,7 @@ func (fsm *FileStateManager) GetRuntimeState() (*RuntimeState, error) {
 	return fsm.loadRuntimeStateUnsafe()
 }
 
-// SaveRuntimeState 保存运行时状态
+// SaveRuntimeState saves runtime state
 func (fsm *FileStateManager) SaveRuntimeState(state *RuntimeState) error {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
@@ -409,7 +409,7 @@ func (fsm *FileStateManager) SaveRuntimeState(state *RuntimeState) error {
 	return fsm.saveRuntimeStateUnsafe(state)
 }
 
-// BatchUpdate 批量更新多个任务状态（提高并发性能）
+// BatchUpdate batch updates multiple task states (improves concurrency performance)
 func (fsm *FileStateManager) BatchUpdate(updates map[string]*TaskRuntimeInfo) error {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
@@ -423,7 +423,7 @@ func (fsm *FileStateManager) BatchUpdate(updates map[string]*TaskRuntimeInfo) er
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
 	
-	// 批量更新
+	// Batch update
 	for name, info := range updates {
 		state.Tasks[name] = info
 	}
@@ -431,12 +431,12 @@ func (fsm *FileStateManager) BatchUpdate(updates map[string]*TaskRuntimeInfo) er
 	return fsm.saveRuntimeStateUnsafe(state)
 }
 
-// loadRuntimeStateUnsafe 加载运行时状态（不加锁，内部使用）
+// loadRuntimeStateUnsafe loads runtime state (no lock, internal use)
 func (fsm *FileStateManager) loadRuntimeStateUnsafe() (*RuntimeState, error) {
 	data, err := os.ReadFile(fsm.statePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// 文件不存在，返回空状态
+			// File doesn't exist, return empty state
 			return &RuntimeState{Tasks: make(map[string]*TaskRuntimeInfo)}, nil
 		}
 		return nil, fmt.Errorf("failed to read state file: %w", err)
@@ -444,14 +444,14 @@ func (fsm *FileStateManager) loadRuntimeStateUnsafe() (*RuntimeState, error) {
 	
 	var state RuntimeState
 	if err := json.Unmarshal(data, &state); err != nil {
-		// JSON 解析失败，尝试恢复
+		// JSON parsing failed, attempt recovery
 		fmt.Printf("Warning: State file corrupted, attempting recovery: %v\n", err)
 		
 		if recoveredState, recoverErr := fsm.recoverCorruptedState(); recoverErr == nil {
 			return recoveredState, nil
 		}
 		
-		// 恢复失败，返回空状态并备份损坏的文件
+		// Recovery failed, return empty state and backup corrupted file
 		fsm.backupCorruptedState()
 		return &RuntimeState{Tasks: make(map[string]*TaskRuntimeInfo)}, nil
 	}
@@ -463,9 +463,9 @@ func (fsm *FileStateManager) loadRuntimeStateUnsafe() (*RuntimeState, error) {
 	return &state, nil
 }
 
-// recoverCorruptedState 尝试恢复损坏的状态文件
+// recoverCorruptedState attempts to recover corrupted state file
 func (fsm *FileStateManager) recoverCorruptedState() (*RuntimeState, error) {
-	// 尝试从备份文件恢复
+	// Try to recover from backup file
 	backupPath := fsm.statePath + ".backup"
 	if _, err := os.Stat(backupPath); err == nil {
 		fmt.Printf("Attempting to recover from backup file: %s\n", backupPath)
@@ -484,7 +484,7 @@ func (fsm *FileStateManager) recoverCorruptedState() (*RuntimeState, error) {
 			state.Tasks = make(map[string]*TaskRuntimeInfo)
 		}
 		
-		// 恢复成功，保存到主文件
+		// Recovery successful, save to main file
 		if err := fsm.saveRuntimeStateUnsafe(&state); err != nil {
 			fmt.Printf("Warning: Failed to save recovered state: %v\n", err)
 		} else {
@@ -497,7 +497,7 @@ func (fsm *FileStateManager) recoverCorruptedState() (*RuntimeState, error) {
 	return nil, fmt.Errorf("no backup file available")
 }
 
-// backupCorruptedState 备份损坏的状态文件
+// backupCorruptedState backs up corrupted state file
 func (fsm *FileStateManager) backupCorruptedState() {
 	corruptedPath := fsm.statePath + ".corrupted." + time.Now().Format("20060102-150405")
 	if err := os.Rename(fsm.statePath, corruptedPath); err != nil {
@@ -507,14 +507,14 @@ func (fsm *FileStateManager) backupCorruptedState() {
 	}
 }
 
-// saveRuntimeStateUnsafe 保存运行时状态（不加锁，内部使用）
+// saveRuntimeStateUnsafe saves runtime state (no lock, internal use)
 func (fsm *FileStateManager) saveRuntimeStateUnsafe(state *RuntimeState) error {
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal state data: %w", err)
 	}
 	
-	// 创建备份（如果主文件存在）
+	// Create backup (if main file exists)
 	if _, err := os.Stat(fsm.statePath); err == nil {
 		backupPath := fsm.statePath + ".backup"
 		if err := fsm.copyFile(fsm.statePath, backupPath); err != nil {
@@ -522,17 +522,17 @@ func (fsm *FileStateManager) saveRuntimeStateUnsafe(state *RuntimeState) error {
 		}
 	}
 	
-	// 原子性更新：先写入临时文件，然后重命名
+	// Atomic update: write to temp file first, then rename
 	tempPath := fsm.statePath + ".tmp"
 	
-	// 写入临时文件
+	// Write to temp file
 	if err := os.WriteFile(tempPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write temp state file: %w", err)
 	}
 	
-	// 原子性重命名
+	// Atomic rename
 	if err := os.Rename(tempPath, fsm.statePath); err != nil {
-		// 清理临时文件
+		// Clean up temp file
 		os.Remove(tempPath)
 		return fmt.Errorf("failed to rename temp state file: %w", err)
 	}
@@ -540,7 +540,7 @@ func (fsm *FileStateManager) saveRuntimeStateUnsafe(state *RuntimeState) error {
 	return nil
 }
 
-// copyFile 复制文件
+// copyFile copies a file
 func (fsm *FileStateManager) copyFile(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {

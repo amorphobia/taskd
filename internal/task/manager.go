@@ -38,8 +38,8 @@ type TaskRuntimeInfo struct {
 	StartTime      time.Time `json:"start_time"`
 	EndTime        time.Time `json:"end_time,omitempty"`
 	ExitCode       int       `json:"exit_code,omitempty"`
-	StoppedByTaskd bool      `json:"stopped_by_taskd"` // 新增：是否由 taskd stop 停止
-	RetryNum       int       `json:"retry_num"`        // 新增：当前重试次数
+	StoppedByTaskd bool      `json:"stopped_by_taskd"` // Whether the task was stopped by taskd stop command
+	RetryNum       int       `json:"retry_num"`        // Current retry count
 }
 
 // DaemonStatus represents the status of the daemon process
@@ -52,10 +52,10 @@ type DaemonStatus struct {
 
 // ProcessStatus represents the result of process checking
 type ProcessStatus struct {
-	Exists       bool   `json:"exists"`        // 进程是否存在
-	IsTaskd      bool   `json:"is_taskd"`      // 是否为 taskd 进程
-	ExitCode     int    `json:"exit_code"`     // 退出码（如果已退出）
-	ExecutablePath string `json:"executable_path"` // 可执行文件路径
+	Exists       bool   `json:"exists"`        // Whether the process exists
+	IsTaskd      bool   `json:"is_taskd"`      // Whether it's a taskd process
+	ExitCode     int    `json:"exit_code"`     // Exit code (if exited)
+	ExecutablePath string `json:"executable_path"` // Executable file path
 }
 
 // GetManager get task manager singleton
@@ -153,10 +153,10 @@ func (m *Manager) addTask(taskName string, config *Config) error {
 }
 
 func (m *Manager) listTasks() ([]*TaskInfo, error) {
-	// 确保守护进程运行（如果需要）
+	// Ensure daemon is running if needed
 	if err := m.ensureDaemonForCommand(); err != nil {
 		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
-		// 继续执行，不因守护进程启动失败而阻止列表显示
+		// Continue execution, don't block list display due to daemon startup failure
 	}
 	
 	m.mu.RLock()
@@ -164,12 +164,12 @@ func (m *Manager) listTasks() ([]*TaskInfo, error) {
 
 	var tasks []*TaskInfo
 	
-	// 首先添加守护进程任务（如果存在）
+	// First add daemon task (if exists)
 	if daemonInfo, err := m.getBuiltinTaskStatus("taskd"); err == nil {
 		tasks = append(tasks, daemonInfo)
 	}
 	
-	// 然后添加其他任务
+	// Then add other tasks
 	for _, task := range m.tasks {
 		info := task.GetInfo()
 		tasks = append(tasks, info)
@@ -204,10 +204,10 @@ func (m *Manager) GetTaskStatus(name string) (*TaskInfo, error) {
 }
 
 func (m *Manager) startTask(name string) error {
-	// 在启动任务前确保守护进程运行（如果需要）
+	// Ensure daemon is running before starting task (if needed)
 	if err := m.ensureDaemonForCommand(); err != nil {
 		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
-		// 继续执行，不因守护进程启动失败而阻止任务启动
+		// Continue execution, don't block task startup due to daemon startup failure
 	}
 	
 	// Check if this is a builtin task
@@ -384,10 +384,10 @@ func (m *Manager) getTaskStatus(name string) (*TaskInfo, error) {
 }
 
 func (m *Manager) restartTask(name string) error {
-	// 在重启任务前确保守护进程运行（如果需要）
+	// Ensure daemon is running before restarting task (if needed)
 	if err := m.ensureDaemonForCommand(); err != nil {
 		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
-		// 继续执行，不因守护进程启动失败而阻止任务重启
+		// Continue execution, don't block task restart due to daemon startup failure
 	}
 	
 	// Check if this is a builtin task
@@ -577,11 +577,22 @@ func (m *Manager) cleanupRuntimeState() error {
 func (m *Manager) saveRuntimeState() error {
 	statePath := taskdconfig.GetTaskDRuntimeFile()
 
+	// Load current state to preserve builtin task information
+	currentState := m.loadRuntimeState()
 	state := &RuntimeState{Tasks: make(map[string]*TaskRuntimeInfo)}
 
+	// Add regular tasks
 	for name, task := range m.tasks {
 		info := task.GetRuntimeInfo()
 		if info != nil {
+			state.Tasks[name] = info
+		}
+	}
+
+	// Preserve builtin task information from current state
+	for name, info := range currentState.Tasks {
+		if m.builtinHandler.IsBuiltinTask(name) {
+			// Keep builtin task info from current state
 			state.Tasks[name] = info
 		}
 	}
@@ -641,10 +652,10 @@ func (m *Manager) ReloadTask(name string) error {
 }
 
 func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
-	// 确保守护进程运行（如果需要）
+	// Ensure daemon is running if needed
 	if err := m.ensureDaemonForCommand(); err != nil {
 		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
-		// 继续执行，不因守护进程启动失败而阻止信息显示
+		// Continue execution, don't block info display due to daemon startup failure
 	}
 	
 	// Check if this is a builtin task
@@ -691,7 +702,7 @@ func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
 	return detailInfo, nil
 }
 
-// resetTaskRetryCount 重置任务的重试计数
+// resetTaskRetryCount resets the retry count for a task
 func (m *Manager) resetTaskRetryCount(taskName string) {
 	state := m.loadRuntimeState()
 	if state.Tasks == nil {
@@ -703,16 +714,16 @@ func (m *Manager) resetTaskRetryCount(taskName string) {
 		return
 	}
 	
-	// 重置重试计数
+	// Reset retry count
 	runtimeInfo.RetryNum = 0
 	
-	// 保存更新后的状态
+	// Save updated state
 	if err := m.saveRuntimeStateWithData(state); err != nil {
 		fmt.Printf("Warning: Failed to reset retry count for task %s: %v\n", taskName, err)
 	}
 }
 
-// setTaskStoppedByTaskd 设置任务的 StoppedByTaskd 标记
+// setTaskStoppedByTaskd sets the StoppedByTaskd flag for a task
 func (m *Manager) setTaskStoppedByTaskd(taskName string, stoppedByTaskd bool) {
 	state := m.loadRuntimeState()
 	if state.Tasks == nil {
@@ -724,25 +735,25 @@ func (m *Manager) setTaskStoppedByTaskd(taskName string, stoppedByTaskd bool) {
 		return
 	}
 	
-	// 设置 StoppedByTaskd 标记
+	// Set StoppedByTaskd flag
 	runtimeInfo.StoppedByTaskd = stoppedByTaskd
 	
-	// 如果是手动停止，同时更新结束时间
+	// If manually stopped, also update end time
 	if stoppedByTaskd {
 		runtimeInfo.EndTime = time.Now()
 		runtimeInfo.Status = "stopped"
 		runtimeInfo.PID = 0
 	}
 	
-	// 保存更新后的状态
+	// Save updated state
 	if err := m.saveRuntimeStateWithData(state); err != nil {
 		fmt.Printf("Warning: Failed to set StoppedByTaskd flag for task %s: %v\n", taskName, err)
 	}
 }
 
-// ensureDaemonForCommand 确保守护进程在需要时运行
+// ensureDaemonForCommand ensures daemon is running when needed
 func (m *Manager) ensureDaemonForCommand() error {
-	// 检查是否需要守护进程
+	// Check if daemon is needed
 	if m.needsDaemon() {
 		daemonManager := GetDaemonManager()
 		return daemonManager.EnsureDaemonRunning()
@@ -750,13 +761,14 @@ func (m *Manager) ensureDaemonForCommand() error {
 	return nil
 }
 
-// needsDaemon 检查是否需要守护进程
+// needsDaemon checks if daemon is needed
 func (m *Manager) needsDaemon() bool {
-	// 检查是否有运行中的任务或自动启动任务
+	// Check if there are running tasks or tasks that need auto-start
+	// Daemon is only needed when monitoring running tasks or auto-restarting tasks
 	return m.hasRunningTasks() || m.hasAutoStartTasks()
 }
 
-// hasRunningTasks 检查是否有运行中的任务
+// hasRunningTasks checks if there are any running tasks
 func (m *Manager) hasRunningTasks() bool {
 	state := m.loadRuntimeState()
 	if state.Tasks == nil {
@@ -764,7 +776,7 @@ func (m *Manager) hasRunningTasks() bool {
 	}
 	
 	for taskName, runtimeInfo := range state.Tasks {
-		// 跳过守护进程本身
+		// Skip daemon itself
 		if taskName == "taskd" {
 			continue
 		}
@@ -777,16 +789,44 @@ func (m *Manager) hasRunningTasks() bool {
 	return false
 }
 
-// hasAutoStartTasks 检查是否有自动启动任务
+// hasAutoStartTasks checks if there are tasks that need auto-start
 func (m *Manager) hasAutoStartTasks() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	
+	// Load runtime state to check retry counts
+	state := m.loadRuntimeState()
+	
 	for _, task := range m.tasks {
 		if task.config.AutoStart {
-			return true
+			// Check task retry status
+			if runtimeInfo, exists := state.Tasks[task.name]; exists {
+				// If task is running, daemon is needed for monitoring
+				if runtimeInfo.Status == "running" {
+					return true
+				}
+				
+				// If task is stopped but not by user, and hasn't reached retry limit, daemon is needed for restart
+				if runtimeInfo.Status == "stopped" && 
+				   !runtimeInfo.StoppedByTaskd &&
+				   (task.config.MaxRetryNum <= 0 || runtimeInfo.RetryNum < task.config.MaxRetryNum) {
+					return true
+				}
+			} else {
+				// Auto-start task without runtime info needs daemon to start
+				return true
+			}
 		}
 	}
 	
 	return false
+}
+
+// hasAnyTasks checks if there are any configured tasks
+func (m *Manager) hasAnyTasks() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	// Check if there are any configured tasks
+	return len(m.tasks) > 0
 }

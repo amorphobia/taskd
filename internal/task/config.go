@@ -13,7 +13,7 @@ type Config struct {
 	Stdout       string            `toml:"stdout,omitempty"`
 	Stderr       string            `toml:"stderr,omitempty"`
 	AutoStart    bool              `toml:"auto_start"`
-	MaxRetryNum  int               `toml:"max_retry_num"`  // 新增：最大重试次数，默认值为3
+	MaxRetryNum  int               `toml:"max_retry_num"`  // Maximum retry count, default is 3
 	Restart      RestartPolicy     `toml:"restart,omitempty"`
 	Log          LogConfig         `toml:"log,omitempty"`
 }

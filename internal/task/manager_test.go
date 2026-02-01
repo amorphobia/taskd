@@ -377,6 +377,49 @@ func TestManagerHasAutoStartTasks(t *testing.T) {
 	}
 }
 
+func TestManagerHasAnyTasks(t *testing.T) {
+	manager := GetManager()
+	
+	// Clear all tasks first
+	manager.mu.Lock()
+	manager.tasks = make(map[string]*Task)
+	manager.mu.Unlock()
+	
+	// Initially should have no tasks
+	if manager.hasAnyTasks() {
+		t.Error("hasAnyTasks() should return false initially")
+	}
+	
+	// Add a regular task
+	regularConfig := &Config{
+		DisplayName: "Regular Task",
+		Description: "Test regular task",
+		Executable:  "echo test",
+		WorkDir:     "/tmp",
+		InheritEnv:  true,
+		AutoStart:   false,
+	}
+	
+	// Manually add to tasks map for testing
+	manager.mu.Lock()
+	task := NewTask("regular-task", regularConfig)
+	manager.tasks["regular-task"] = task
+	manager.mu.Unlock()
+	
+	if !manager.hasAnyTasks() {
+		t.Error("hasAnyTasks() should return true when tasks exist")
+	}
+	
+	// Remove the task
+	manager.mu.Lock()
+	delete(manager.tasks, "regular-task")
+	manager.mu.Unlock()
+	
+	if manager.hasAnyTasks() {
+		t.Error("hasAnyTasks() should return false after removing all tasks")
+	}
+}
+
 func TestManagerNeedsDaemon(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
@@ -394,7 +437,7 @@ func TestManagerNeedsDaemon(t *testing.T) {
 	
 	manager := GetManager()
 	
-	// Test with no running tasks and no auto-start tasks
+	// Test with no running tasks and no tasks at all
 	emptyState := &RuntimeState{
 		Tasks: map[string]*TaskRuntimeInfo{},
 	}
@@ -404,8 +447,43 @@ func TestManagerNeedsDaemon(t *testing.T) {
 		t.Fatalf("Failed to save empty state: %v", err)
 	}
 	
+	// Clear tasks from manager
+	manager.mu.Lock()
+	manager.tasks = make(map[string]*Task)
+	manager.mu.Unlock()
+	
 	if manager.needsDaemon() {
-		t.Error("needsDaemon() should return false when no daemon is needed")
+		t.Error("needsDaemon() should return false when no tasks exist")
+	}
+	
+	// Test with tasks but no auto-start tasks
+	testConfig := &Config{
+		Executable: "test",
+		AutoStart:  false,
+	}
+	
+	manager.mu.Lock()
+	task := NewTask("test-task", testConfig)
+	manager.tasks["test-task"] = task
+	manager.mu.Unlock()
+	
+	if manager.needsDaemon() {
+		t.Error("needsDaemon() should return false when no auto-start tasks exist")
+	}
+	
+	// Test with auto-start tasks
+	autoStartConfig := &Config{
+		Executable: "test",
+		AutoStart:  true,
+	}
+	
+	manager.mu.Lock()
+	autoStartTask := NewTask("auto-start-task", autoStartConfig)
+	manager.tasks["auto-start-task"] = autoStartTask
+	manager.mu.Unlock()
+	
+	if !manager.needsDaemon() {
+		t.Error("needsDaemon() should return true when auto-start tasks exist")
 	}
 	
 	// Test with running tasks
