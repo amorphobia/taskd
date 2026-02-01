@@ -20,8 +20,9 @@ var (
 
 // Manager task manager
 type Manager struct {
-	tasks map[string]*Task
-	mu    sync.RWMutex
+	tasks          map[string]*Task
+	mu             sync.RWMutex
+	builtinHandler *BuiltinTaskHandler
 }
 
 // RuntimeState represents the runtime state of tasks
@@ -31,25 +32,49 @@ type RuntimeState struct {
 
 // TaskRuntimeInfo represents runtime information for a task
 type TaskRuntimeInfo struct {
-	Name      string    `json:"name"`
-	Status    string    `json:"status"`
+	Name           string    `json:"name"`
+	Status         string    `json:"status"`
+	PID            int       `json:"pid"`
+	StartTime      time.Time `json:"start_time"`
+	EndTime        time.Time `json:"end_time,omitempty"`
+	ExitCode       int       `json:"exit_code,omitempty"`
+	StoppedByTaskd bool      `json:"stopped_by_taskd"` // 新增：是否由 taskd stop 停止
+	RetryNum       int       `json:"retry_num"`        // 新增：当前重试次数
+}
+
+// DaemonStatus represents the status of the daemon process
+type DaemonStatus struct {
+	IsRunning bool      `json:"is_running"`
 	PID       int       `json:"pid"`
 	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time,omitempty"`
-	ExitCode  int       `json:"exit_code,omitempty"`
+	LastCheck time.Time `json:"last_check"`
+}
+
+// ProcessStatus represents the result of process checking
+type ProcessStatus struct {
+	Exists       bool   `json:"exists"`        // 进程是否存在
+	IsTaskd      bool   `json:"is_taskd"`      // 是否为 taskd 进程
+	ExitCode     int    `json:"exit_code"`     // 退出码（如果已退出）
+	ExecutablePath string `json:"executable_path"` // 可执行文件路径
 }
 
 // GetManager get task manager singleton
 func GetManager() *Manager {
 	once.Do(func() {
 		taskManager = &Manager{
-			tasks: make(map[string]*Task),
+			tasks:          make(map[string]*Task),
+			builtinHandler: NewBuiltinTaskHandler(),
 		}
 		taskManager.loadTasks()
 		// Clean up stale runtime state after loading tasks
 		taskManager.cleanupRuntimeState()
 	})
 	return taskManager
+}
+
+// ValidateBuiltinTaskOperation validates if an operation is allowed on a builtin task
+func (m *Manager) ValidateBuiltinTaskOperation(taskName, operation string) error {
+	return m.builtinHandler.ValidateOperation(taskName, operation)
 }
 
 // AddTask add a task
@@ -91,6 +116,11 @@ func RemoveTask(name string) error {
 func (m *Manager) addTask(taskName string, config *Config) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Check if this is a builtin task
+	if m.builtinHandler.IsBuiltinTask(taskName) {
+		return m.builtinHandler.ValidateOperation(taskName, "add")
+	}
 
 	// Check if task already exists
 	if _, exists := m.tasks[taskName]; exists {
@@ -161,6 +191,12 @@ func (m *Manager) GetTaskStatus(name string) (*TaskInfo, error) {
 }
 
 func (m *Manager) startTask(name string) error {
+	// Check if this is a builtin task
+	if m.builtinHandler.IsBuiltinTask(name) {
+		// For builtin tasks, we need to handle them specially
+		return m.startBuiltinTask(name)
+	}
+
 	m.mu.RLock()
 	task, exists := m.tasks[name]
 	m.mu.RUnlock()
@@ -177,7 +213,77 @@ func (m *Manager) startTask(name string) error {
 	return err
 }
 
+// startBuiltinTask starts a builtin task
+func (m *Manager) startBuiltinTask(name string) error {
+	if name == "taskd" {
+		// TODO: Implement daemon startup logic
+		// This will be implemented in later tasks
+		return fmt.Errorf("daemon startup not yet implemented")
+	}
+	return fmt.Errorf("unknown builtin task: %s", name)
+}
+
+// stopBuiltinTask stops a builtin task
+func (m *Manager) stopBuiltinTask(name string) error {
+	if name == "taskd" {
+		// TODO: Implement daemon stop logic
+		// This will be implemented in later tasks
+		return fmt.Errorf("daemon stop not yet implemented")
+	}
+	return fmt.Errorf("unknown builtin task: %s", name)
+}
+
+// getBuiltinTaskStatus gets the status of a builtin task
+func (m *Manager) getBuiltinTaskStatus(name string) (*TaskInfo, error) {
+	if name == "taskd" {
+		// TODO: Implement daemon status check
+		// This will be implemented in later tasks
+		return &TaskInfo{
+			Name:       "taskd",
+			Status:     "stopped",
+			PID:        0,
+			StartTime:  "",
+			Executable: "taskd --daemon",
+		}, nil
+	}
+	return nil, fmt.Errorf("unknown builtin task: %s", name)
+}
+
+// getBuiltinTaskDetailInfo gets the detailed information of a builtin task
+func (m *Manager) getBuiltinTaskDetailInfo(name string) (*TaskDetailInfo, error) {
+	if name == "taskd" {
+		config := m.builtinHandler.GetBuiltinTaskConfig(name)
+		if config == nil {
+			return nil, fmt.Errorf("failed to get builtin task config")
+		}
+		
+		// TODO: Get actual daemon status from runtime state
+		// For now, return basic information
+		return &TaskDetailInfo{
+			Name:        "taskd",
+			Status:      "stopped",
+			PID:         0,
+			StartTime:   "",
+			Executable:  config.Executable,
+			DisplayName: config.DisplayName,
+			Description: config.Description,
+			WorkDir:     config.WorkDir,
+			Args:        []string{},
+			Env:         []string{},
+			InheritEnv:  config.InheritEnv,
+			IOInfo:      &TaskIOInfo{}, // No IO redirection for daemon
+		}, nil
+	}
+	return nil, fmt.Errorf("unknown builtin task: %s", name)
+}
+
 func (m *Manager) stopTask(name string) error {
+	// Check if this is a builtin task
+	if m.builtinHandler.IsBuiltinTask(name) {
+		// For builtin tasks, we need to handle them specially
+		return m.stopBuiltinTask(name)
+	}
+
 	m.mu.RLock()
 	task, exists := m.tasks[name]
 	m.mu.RUnlock()
@@ -194,6 +300,12 @@ func (m *Manager) stopTask(name string) error {
 }
 
 func (m *Manager) getTaskStatus(name string) (*TaskInfo, error) {
+	// Check if this is a builtin task
+	if m.builtinHandler.IsBuiltinTask(name) {
+		// For builtin tasks, we need to get status from runtime state
+		return m.getBuiltinTaskStatus(name)
+	}
+
 	m.mu.RLock()
 	task, exists := m.tasks[name]
 	m.mu.RUnlock()
@@ -429,6 +541,11 @@ func (m *Manager) ReloadTask(name string) error {
 }
 
 func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
+	// Check if this is a builtin task
+	if m.builtinHandler.IsBuiltinTask(name) {
+		return m.getBuiltinTaskDetailInfo(name)
+	}
+
 	m.mu.RLock()
 	task, exists := m.tasks[name]
 	m.mu.RUnlock()

@@ -43,6 +43,12 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskName := args[0]
 		
+		// Check if this is a builtin task
+		manager := task.GetManager()
+		if err := manager.ValidateBuiltinTaskOperation(taskName, "edit"); err != nil {
+			return err
+		}
+		
 		// Get current task configuration
 		currentInfo, err := task.GetTaskDetailInfo(taskName)
 		if err != nil {

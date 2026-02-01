@@ -3,23 +3,23 @@
 ## 阶段1：基础架构搭建
 
 ### 1.1 数据结构扩展
-- [ ] 1.1.1 扩展 Config 结构体，添加 MaxRetryNum 字段
-- [ ] 1.1.2 扩展 TaskRuntimeInfo 结构体，添加 StoppedByTaskd 和 RetryNum 字段
-- [ ] 1.1.3 创建 DaemonStatus 结构体定义守护进程状态
-- [ ] 1.1.4 创建 ProcessStatus 结构体定义进程检查结果
+- [x] 1.1.1 扩展 Config 结构体，添加 MaxRetryNum 字段
+- [x] 1.1.2 扩展 TaskRuntimeInfo 结构体，添加 StoppedByTaskd 和 RetryNum 字段
+- [x] 1.1.3 创建 DaemonStatus 结构体定义守护进程状态
+- [x] 1.1.4 创建 ProcessStatus 结构体定义进程检查结果
 
 ### 1.2 命令行参数处理
-- [ ] 1.2.1 在 root.go 中添加 --daemon 隐藏参数
-- [ ] 1.2.2 实现 --daemon 参数验证逻辑，禁止与其他参数组合使用
-- [ ] 1.2.3 在 main.go 中添加守护进程模式入口点
-- [ ] 1.2.4 实现守护进程模式的信号处理机制
+- [x] 1.2.1 在 root.go 中添加 --daemon 隐藏参数
+- [x] 1.2.2 实现 --daemon 参数验证逻辑，禁止与其他参数组合使用
+- [x] 1.2.3 在 main.go 中添加守护进程模式入口点
+- [x] 1.2.4 实现守护进程模式的信号处理机制
 
 ### 1.3 内置任务处理器
-- [ ] 1.3.1 创建 BuiltinTaskHandler 结构体
-- [ ] 1.3.2 实现 IsBuiltinTask 方法检查内置任务
-- [ ] 1.3.3 实现 GetBuiltinTaskConfig 方法返回虚拟配置
-- [ ] 1.3.4 实现 ValidateOperation 方法限制内置任务操作
-- [ ] 1.3.5 在任务管理器中集成内置任务处理逻辑
+- [x] 1.3.1 创建 BuiltinTaskHandler 结构体
+- [x] 1.3.2 实现 IsBuiltinTask 方法检查内置任务
+- [x] 1.3.3 实现 GetBuiltinTaskConfig 方法返回虚拟配置
+- [x] 1.3.4 实现 ValidateOperation 方法限制内置任务操作
+- [x] 1.3.5 在任务管理器中集成内置任务处理逻辑
 
 ## 阶段2：守护进程管理
 

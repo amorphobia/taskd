@@ -327,6 +327,13 @@ func validateConfigurationConflicts(taskName, executable, stdin, stdout, stderr 
 func validateTaskNameConflicts(taskName string) error {
 	// Check if task already exists
 	manager := task.GetManager()
+	
+	// First check if this is a builtin task
+	if err := manager.ValidateBuiltinTaskOperation(taskName, "add"); err != nil {
+		return err
+	}
+	
+	// Then check if regular task exists
 	if _, err := manager.GetTaskStatus(taskName); err == nil {
 		return fmt.Errorf("task '%s' already exists", taskName)
 	}

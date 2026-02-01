@@ -37,6 +37,12 @@ func runDelCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("task name cannot be empty")
 	}
 	
+	// Check if this is a builtin task
+	manager := task.GetManager()
+	if err := manager.ValidateBuiltinTaskOperation(taskName, "del"); err != nil {
+		return err
+	}
+	
 	// Check if task exists
 	taskInfo, err := task.GetTaskStatus(taskName)
 	if err != nil {

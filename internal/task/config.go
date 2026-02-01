@@ -2,19 +2,20 @@ package task
 
 // Config task configuration structure
 type Config struct {
-	DisplayName string            `toml:"display_name,omitempty"`
-	Description string            `toml:"description,omitempty"`
-	Executable  string            `toml:"executable"`
-	Args        []string          `toml:"args,omitempty"`
-	WorkDir     string            `toml:"workdir,omitempty"`
-	Env         []string          `toml:"env,omitempty"`
-	InheritEnv  bool              `toml:"inherit_env"`
-	Stdin       string            `toml:"stdin,omitempty"`
-	Stdout      string            `toml:"stdout,omitempty"`
-	Stderr      string            `toml:"stderr,omitempty"`
-	AutoStart   bool              `toml:"auto_start"`
-	Restart     RestartPolicy     `toml:"restart,omitempty"`
-	Log         LogConfig         `toml:"log,omitempty"`
+	DisplayName  string            `toml:"display_name,omitempty"`
+	Description  string            `toml:"description,omitempty"`
+	Executable   string            `toml:"executable"`
+	Args         []string          `toml:"args,omitempty"`
+	WorkDir      string            `toml:"workdir,omitempty"`
+	Env          []string          `toml:"env,omitempty"`
+	InheritEnv   bool              `toml:"inherit_env"`
+	Stdin        string            `toml:"stdin,omitempty"`
+	Stdout       string            `toml:"stdout,omitempty"`
+	Stderr       string            `toml:"stderr,omitempty"`
+	AutoStart    bool              `toml:"auto_start"`
+	MaxRetryNum  int               `toml:"max_retry_num"`  // 新增：最大重试次数，默认值为3
+	Restart      RestartPolicy     `toml:"restart,omitempty"`
+	Log          LogConfig         `toml:"log,omitempty"`
 }
 
 // RestartPolicy restart policy configuration
