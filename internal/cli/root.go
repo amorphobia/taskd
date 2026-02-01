@@ -23,7 +23,12 @@ Features:
 - Relative paths are resolved based on the task's working directory
 - Automatic file creation in append mode for output files
 - Unified task information display with the 'info' command`,
-	PreRunE: validateDaemonFlag,
+	PersistentPreRunE: validateDaemonFlag,
+	Run: func(cmd *cobra.Command, args []string) {
+		// If daemon mode is enabled, this should not be reached
+		// because main() should handle daemon mode before calling Execute()
+		cmd.Help()
+	},
 }
 
 func Execute() error {

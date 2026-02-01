@@ -216,9 +216,9 @@ func (m *Manager) startTask(name string) error {
 // startBuiltinTask starts a builtin task
 func (m *Manager) startBuiltinTask(name string) error {
 	if name == "taskd" {
-		// TODO: Implement daemon startup logic
-		// This will be implemented in later tasks
-		return fmt.Errorf("daemon startup not yet implemented")
+		// Use DaemonManager to start the daemon
+		daemonManager := GetDaemonManager()
+		return daemonManager.StartDaemon()
 	}
 	return fmt.Errorf("unknown builtin task: %s", name)
 }
@@ -226,9 +226,9 @@ func (m *Manager) startBuiltinTask(name string) error {
 // stopBuiltinTask stops a builtin task
 func (m *Manager) stopBuiltinTask(name string) error {
 	if name == "taskd" {
-		// TODO: Implement daemon stop logic
-		// This will be implemented in later tasks
-		return fmt.Errorf("daemon stop not yet implemented")
+		// Use DaemonManager to stop the daemon
+		daemonManager := GetDaemonManager()
+		return daemonManager.StopDaemon()
 	}
 	return fmt.Errorf("unknown builtin task: %s", name)
 }
@@ -236,14 +236,37 @@ func (m *Manager) stopBuiltinTask(name string) error {
 // getBuiltinTaskStatus gets the status of a builtin task
 func (m *Manager) getBuiltinTaskStatus(name string) (*TaskInfo, error) {
 	if name == "taskd" {
-		// TODO: Implement daemon status check
-		// This will be implemented in later tasks
+		// Get daemon status from runtime state
+		state := m.loadRuntimeState()
+		daemonInfo, exists := state.Tasks["taskd"]
+		
+		if !exists {
+			// Daemon has never been started
+			return &TaskInfo{
+				Name:       "taskd",
+				Status:     "stopped",
+				PID:        0,
+				StartTime:  "",
+				Executable: "taskd --daemon",
+			}, nil
+		}
+		
+		// Check if the daemon is actually running
+		daemonManager := GetDaemonManager()
+		isRunning := daemonManager.IsRunning()
+		
+		status := "stopped"
+		if isRunning {
+			status = "running"
+		}
+		
 		return &TaskInfo{
 			Name:       "taskd",
-			Status:     "stopped",
-			PID:        0,
-			StartTime:  "",
+			Status:     status,
+			PID:        daemonInfo.PID,
+			StartTime:  daemonInfo.StartTime.Format("2006-01-02 15:04:05"),
 			Executable: "taskd --daemon",
+			ExitCode:   daemonInfo.ExitCode,
 		}, nil
 	}
 	return nil, fmt.Errorf("unknown builtin task: %s", name)
@@ -257,13 +280,31 @@ func (m *Manager) getBuiltinTaskDetailInfo(name string) (*TaskDetailInfo, error)
 			return nil, fmt.Errorf("failed to get builtin task config")
 		}
 		
-		// TODO: Get actual daemon status from runtime state
-		// For now, return basic information
+		// Get daemon status from runtime state
+		state := m.loadRuntimeState()
+		daemonInfo, exists := state.Tasks["taskd"]
+		
+		status := "stopped"
+		pid := 0
+		startTime := ""
+		
+		if exists {
+			// Check if the daemon is actually running
+			daemonManager := GetDaemonManager()
+			isRunning := daemonManager.IsRunning()
+			
+			if isRunning {
+				status = "running"
+			}
+			pid = daemonInfo.PID
+			startTime = daemonInfo.StartTime.Format("2006-01-02 15:04:05")
+		}
+		
 		return &TaskDetailInfo{
 			Name:        "taskd",
-			Status:      "stopped",
-			PID:         0,
-			StartTime:   "",
+			Status:      status,
+			PID:         pid,
+			StartTime:   startTime,
 			Executable:  config.Executable,
 			DisplayName: config.DisplayName,
 			Description: config.Description,
@@ -461,9 +502,13 @@ func (m *Manager) cleanupRuntimeState() error {
 				// Keep the old info if we can't get current info
 				updatedTasks[name] = info
 			}
+		} else if m.builtinHandler.IsBuiltinTask(name) {
+			// Keep builtin tasks in runtime state even if they're not in m.tasks
+			// Builtin tasks don't have .toml files and are managed differently
+			updatedTasks[name] = info
 		} else {
-			// Task no longer exists in manager, remove from runtime state
-			// This handles the case where tasks are deleted
+			// Task no longer exists in manager and is not builtin, remove from runtime state
+			// This handles the case where regular tasks are deleted
 		}
 	}
 
@@ -497,6 +542,18 @@ func (m *Manager) saveRuntimeState() error {
 			state.Tasks[name] = info
 		}
 	}
+
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal runtime state: %w", err)
+	}
+
+	return os.WriteFile(statePath, data, 0644)
+}
+
+// saveRuntimeStateWithData saves the given runtime state data
+func (m *Manager) saveRuntimeStateWithData(state *RuntimeState) error {
+	statePath := taskdconfig.GetTaskDRuntimeFile()
 
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {

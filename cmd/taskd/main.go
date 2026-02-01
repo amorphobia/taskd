@@ -10,10 +10,12 @@ import (
 )
 
 func main() {
-	// Check if running in daemon mode
-	if cli.IsDaemonMode() {
-		runDaemonMode()
-		return
+	// Check command line arguments directly for --daemon flag
+	for _, arg := range os.Args[1:] {
+		if arg == "--daemon" {
+			runDaemonMode()
+			return
+		}
 	}
 	
 	// Normal command mode
