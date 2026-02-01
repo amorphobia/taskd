@@ -204,12 +204,6 @@ func (m *Manager) GetTaskStatus(name string) (*TaskInfo, error) {
 }
 
 func (m *Manager) startTask(name string) error {
-	// Ensure daemon is running before starting task (if needed)
-	if err := m.ensureDaemonForCommand(); err != nil {
-		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
-		// Continue execution, don't block task startup due to daemon startup failure
-	}
-	
 	// Check if this is a builtin task
 	if m.builtinHandler.IsBuiltinTask(name) {
 		// For builtin tasks, we need to handle them specially
@@ -230,6 +224,13 @@ func (m *Manager) startTask(name string) error {
 		m.resetTaskRetryCount(name)
 		// Save runtime state after successful start
 		m.saveRuntimeState()
+		
+		// Ensure daemon is running after task is successfully started (if needed)
+		// This is important for background tasks that need monitoring
+		if daemonErr := m.ensureDaemonForCommand(); daemonErr != nil {
+			fmt.Printf("Warning: Failed to ensure daemon is running after task start: %v\n", daemonErr)
+			// Don't return error here as the task has already started successfully
+		}
 	}
 	return err
 }
@@ -384,12 +385,6 @@ func (m *Manager) getTaskStatus(name string) (*TaskInfo, error) {
 }
 
 func (m *Manager) restartTask(name string) error {
-	// Ensure daemon is running before restarting task (if needed)
-	if err := m.ensureDaemonForCommand(); err != nil {
-		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
-		// Continue execution, don't block task restart due to daemon startup failure
-	}
-	
 	// Check if this is a builtin task
 	if m.builtinHandler.IsBuiltinTask(name) {
 		// For builtin tasks, restart means stop then start
@@ -425,6 +420,13 @@ func (m *Manager) restartTask(name string) error {
 		m.resetTaskRetryCount(name)
 		// Save runtime state after successful restart
 		m.saveRuntimeState()
+		
+		// Ensure daemon is running after task is successfully restarted (if needed)
+		// This is important for background tasks that need monitoring
+		if daemonErr := m.ensureDaemonForCommand(); daemonErr != nil {
+			fmt.Printf("Warning: Failed to ensure daemon is running after task restart: %v\n", daemonErr)
+			// Don't return error here as the task has already restarted successfully
+		}
 	}
 	return err
 }
