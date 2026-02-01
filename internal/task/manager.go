@@ -579,7 +579,7 @@ func (m *Manager) cleanupRuntimeState() error {
 func (m *Manager) saveRuntimeState() error {
 	statePath := taskdconfig.GetTaskDRuntimeFile()
 
-	// Load current state to preserve builtin task information
+	// Load current state to preserve builtin task information and user-set flags
 	currentState := m.loadRuntimeState()
 	state := &RuntimeState{Tasks: make(map[string]*TaskRuntimeInfo)}
 
@@ -587,6 +587,12 @@ func (m *Manager) saveRuntimeState() error {
 	for name, task := range m.tasks {
 		info := task.GetRuntimeInfo()
 		if info != nil {
+			// Check if we have existing runtime info with user-set flags
+			if existingInfo, exists := currentState.Tasks[name]; exists {
+				// Preserve user-set flags like StoppedByTaskd and RetryNum
+				info.StoppedByTaskd = existingInfo.StoppedByTaskd
+				info.RetryNum = existingInfo.RetryNum
+			}
 			state.Tasks[name] = info
 		}
 	}
@@ -729,18 +735,42 @@ func (m *Manager) resetTaskRetryCount(taskName string) {
 func (m *Manager) setTaskStoppedByTaskd(taskName string, stoppedByTaskd bool) {
 	state := m.loadRuntimeState()
 	if state.Tasks == nil {
-		return
+		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
 	
 	runtimeInfo, exists := state.Tasks[taskName]
 	if !exists {
-		return
+		// If task doesn't exist in runtime state, create a new entry
+		// This can happen if the task was just started and hasn't been saved yet
+		m.mu.RLock()
+		task, taskExists := m.tasks[taskName]
+		m.mu.RUnlock()
+		
+		if taskExists {
+			// Get current task info and create runtime info
+			taskInfo := task.GetInfo()
+			runtimeInfo = &TaskRuntimeInfo{
+				Name:           taskName,
+				Status:         taskInfo.Status,
+				PID:            taskInfo.PID,
+				StartTime:      task.startTime,
+				EndTime:        task.endTime,
+				ExitCode:       taskInfo.ExitCode,
+				StoppedByTaskd: false,
+				RetryNum:       0,
+			}
+			state.Tasks[taskName] = runtimeInfo
+		} else {
+			// Task doesn't exist in manager either, can't set flag
+			fmt.Printf("Warning: Task %s not found in manager, cannot set StoppedByTaskd flag\n", taskName)
+			return
+		}
 	}
 	
 	// Set StoppedByTaskd flag
 	runtimeInfo.StoppedByTaskd = stoppedByTaskd
 	
-	// If manually stopped, also update end time
+	// If manually stopped, also update end time and status
 	if stoppedByTaskd {
 		runtimeInfo.EndTime = time.Now()
 		runtimeInfo.Status = "stopped"

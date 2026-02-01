@@ -340,7 +340,34 @@ func TestManagerHasRunningTasks(t *testing.T) {
 }
 
 func TestManagerHasAutoStartTasks(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+	
+	// Mock the GetTaskDRuntimeFile function
+	originalGetTaskDRuntimeFile := getTaskDRuntimeFile
+	defer func() {
+		getTaskDRuntimeFile = originalGetTaskDRuntimeFile
+	}()
+	
+	testRuntimeFile := filepath.Join(tempDir, "runtime.json")
+	getTaskDRuntimeFile = func() string {
+		return testRuntimeFile
+	}
+	
 	manager := GetManager()
+	
+	// Clear tasks and save empty state
+	manager.mu.Lock()
+	manager.tasks = make(map[string]*Task)
+	manager.mu.Unlock()
+	
+	emptyState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{},
+	}
+	err := manager.saveRuntimeStateWithData(emptyState)
+	if err != nil {
+		t.Fatalf("Failed to save empty state: %v", err)
+	}
 	
 	// Initially should have no auto-start tasks
 	if manager.hasAutoStartTasks() {
@@ -363,8 +390,30 @@ func TestManagerHasAutoStartTasks(t *testing.T) {
 	manager.tasks["auto-start-task"] = task
 	manager.mu.Unlock()
 	
+	// Now it should return true because auto-start task without runtime info needs daemon
 	if !manager.hasAutoStartTasks() {
 		t.Error("hasAutoStartTasks() should return true when auto-start tasks exist")
+	}
+	
+	// Add runtime info showing task was stopped by user
+	stoppedByUserState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{
+			"auto-start-task": {
+				Name:           "auto-start-task",
+				Status:         "stopped",
+				StoppedByTaskd: true, // Stopped by user
+				RetryNum:       0,
+			},
+		},
+	}
+	err = manager.saveRuntimeStateWithData(stoppedByUserState)
+	if err != nil {
+		t.Fatalf("Failed to save stopped by user state: %v", err)
+	}
+	
+	// Now it should return false because task was stopped by user
+	if manager.hasAutoStartTasks() {
+		t.Error("hasAutoStartTasks() should return false when auto-start task was stopped by user")
 	}
 	
 	// Remove the task
@@ -938,5 +987,153 @@ func TestManagerNeedsDaemonLogic(t *testing.T) {
 	
 	if manager.needsDaemon() {
 		t.Error("needsDaemon() should return false when auto-start task was stopped by user")
+	}
+}
+// TestManagerStopTaskSetsStoppedByTaskdFlag tests that stopping a task sets the StoppedByTaskd flag
+func TestManagerStopTaskSetsStoppedByTaskdFlag(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+	
+	// Mock the GetTaskDRuntimeFile function
+	originalGetTaskDRuntimeFile := getTaskDRuntimeFile
+	defer func() {
+		getTaskDRuntimeFile = originalGetTaskDRuntimeFile
+	}()
+	
+	testRuntimeFile := filepath.Join(tempDir, "runtime.json")
+	getTaskDRuntimeFile = func() string {
+		return testRuntimeFile
+	}
+	
+	manager := GetManager()
+	
+	// Create a test task
+	testConfig := &Config{
+		Executable: "cmd",
+		Args:       []string{"/c", "ping", "-t", "127.0.0.1"},
+	}
+	
+	// Add task to manager
+	manager.mu.Lock()
+	testTask := NewTask("test-stop-task", testConfig)
+	manager.tasks["test-stop-task"] = testTask
+	manager.mu.Unlock()
+	
+	// Save initial state
+	initialState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{},
+	}
+	err := manager.saveRuntimeStateWithData(initialState)
+	if err != nil {
+		t.Fatalf("Failed to save initial state: %v", err)
+	}
+	
+	// Start the task
+	err = manager.startTask("test-stop-task")
+	if err != nil {
+		t.Fatalf("Failed to start task: %v", err)
+	}
+	
+	// Wait a moment for the task to start
+	time.Sleep(100 * time.Millisecond)
+	
+	// Stop the task
+	err = manager.stopTask("test-stop-task")
+	if err != nil {
+		t.Fatalf("Failed to stop task: %v", err)
+	}
+	
+	// Check runtime state
+	state := manager.loadRuntimeState()
+	taskInfo, exists := state.Tasks["test-stop-task"]
+	if !exists {
+		t.Fatal("Task should exist in runtime state after stop")
+	}
+	
+	// Verify that StoppedByTaskd is set to true
+	if !taskInfo.StoppedByTaskd {
+		t.Error("StoppedByTaskd should be true when task is manually stopped")
+	}
+	
+	// Verify that status is stopped
+	if taskInfo.Status != "stopped" {
+		t.Errorf("Task status should be 'stopped', got: %s", taskInfo.Status)
+	}
+	
+	// Verify that PID is reset
+	if taskInfo.PID != 0 {
+		t.Errorf("Task PID should be 0 after stop, got: %d", taskInfo.PID)
+	}
+}
+
+// TestManagerSaveRuntimeStatePreservesUserFlags tests that saveRuntimeState preserves user-set flags
+func TestManagerSaveRuntimeStatePreservesUserFlags(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+	
+	// Mock the GetTaskDRuntimeFile function
+	originalGetTaskDRuntimeFile := getTaskDRuntimeFile
+	defer func() {
+		getTaskDRuntimeFile = originalGetTaskDRuntimeFile
+	}()
+	
+	testRuntimeFile := filepath.Join(tempDir, "runtime.json")
+	getTaskDRuntimeFile = func() string {
+		return testRuntimeFile
+	}
+	
+	manager := GetManager()
+	
+	// Create a test task
+	testConfig := &Config{
+		Executable: "cmd",
+		Args:       []string{"/c", "echo", "test"},
+	}
+	
+	// Add task to manager
+	manager.mu.Lock()
+	testTask := NewTask("test-preserve-flags", testConfig)
+	manager.tasks["test-preserve-flags"] = testTask
+	manager.mu.Unlock()
+	
+	// Create initial state with user-set flags
+	initialState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{
+			"test-preserve-flags": {
+				Name:           "test-preserve-flags",
+				Status:         "stopped",
+				PID:            0,
+				StartTime:      time.Now(),
+				EndTime:        time.Now(),
+				StoppedByTaskd: true,  // User-set flag
+				RetryNum:       5,     // User-set flag
+			},
+		},
+	}
+	err := manager.saveRuntimeStateWithData(initialState)
+	if err != nil {
+		t.Fatalf("Failed to save initial state: %v", err)
+	}
+	
+	// Call saveRuntimeState which should preserve the user-set flags
+	err = manager.saveRuntimeState()
+	if err != nil {
+		t.Fatalf("Failed to save runtime state: %v", err)
+	}
+	
+	// Load state and verify flags are preserved
+	state := manager.loadRuntimeState()
+	taskInfo, exists := state.Tasks["test-preserve-flags"]
+	if !exists {
+		t.Fatal("Task should exist in runtime state")
+	}
+	
+	// Verify that user-set flags are preserved
+	if !taskInfo.StoppedByTaskd {
+		t.Error("StoppedByTaskd flag should be preserved")
+	}
+	
+	if taskInfo.RetryNum != 5 {
+		t.Errorf("RetryNum should be preserved as 5, got: %d", taskInfo.RetryNum)
 	}
 }
