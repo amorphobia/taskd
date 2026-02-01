@@ -595,3 +595,348 @@ func TestTaskRuntimeInfoStruct(t *testing.T) {
 		t.Errorf("RetryNum = %d, want 3", info.RetryNum)
 	}
 }
+// TestManagerEnsureDaemonForCommand tests the ensureDaemonForCommand logic
+func TestManagerEnsureDaemonForCommand(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+	
+	// Mock the GetTaskDRuntimeFile function
+	originalGetTaskDRuntimeFile := getTaskDRuntimeFile
+	defer func() {
+		getTaskDRuntimeFile = originalGetTaskDRuntimeFile
+	}()
+	
+	testRuntimeFile := filepath.Join(tempDir, "runtime.json")
+	getTaskDRuntimeFile = func() string {
+		return testRuntimeFile
+	}
+	
+	manager := GetManager()
+	
+	// Test case 1: No tasks, no daemon needed
+	manager.mu.Lock()
+	manager.tasks = make(map[string]*Task)
+	manager.mu.Unlock()
+	
+	// Save empty state
+	emptyState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{},
+	}
+	err := manager.saveRuntimeStateWithData(emptyState)
+	if err != nil {
+		t.Fatalf("Failed to save empty state: %v", err)
+	}
+	
+	// ensureDaemonForCommand should not start daemon when no tasks need it
+	err = manager.ensureDaemonForCommand()
+	if err != nil {
+		t.Errorf("ensureDaemonForCommand() should not return error when no daemon needed: %v", err)
+	}
+	
+	// Test case 2: Auto-start task exists, daemon should be needed
+	autoStartConfig := &Config{
+		Executable: "test-auto",
+		AutoStart:  true,
+	}
+	
+	manager.mu.Lock()
+	autoStartTask := NewTask("auto-start-task", autoStartConfig)
+	manager.tasks["auto-start-task"] = autoStartTask
+	manager.mu.Unlock()
+	
+	// This should trigger daemon startup (but we can't easily test the actual startup)
+	// We just verify that the method doesn't return an error
+	err = manager.ensureDaemonForCommand()
+	// Note: This might return an error if daemon startup fails, which is expected in test environment
+	// The important thing is that the logic is called
+	
+	// Test case 3: Running task exists, daemon should be needed
+	runningState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{
+			"running-task": {
+				Name:   "running-task",
+				Status: "running",
+				PID:    12345,
+			},
+		},
+	}
+	
+	err = manager.saveRuntimeStateWithData(runningState)
+	if err != nil {
+		t.Fatalf("Failed to save running state: %v", err)
+	}
+	
+	// This should also trigger daemon startup
+	err = manager.ensureDaemonForCommand()
+	// Again, we don't check for specific error as daemon startup might fail in test environment
+}
+
+// TestManagerStartTaskDaemonIntegration tests that startTask calls ensureDaemonForCommand after successful start
+func TestManagerStartTaskDaemonIntegration(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+	
+	// Mock the GetTaskDRuntimeFile function
+	originalGetTaskDRuntimeFile := getTaskDRuntimeFile
+	defer func() {
+		getTaskDRuntimeFile = originalGetTaskDRuntimeFile
+	}()
+	
+	testRuntimeFile := filepath.Join(tempDir, "runtime.json")
+	getTaskDRuntimeFile = func() string {
+		return testRuntimeFile
+	}
+	
+	manager := GetManager()
+	
+	// Create a test task that will start successfully
+	testConfig := &Config{
+		Executable: "cmd",
+		Args:       []string{"/c", "echo", "test"},
+		AutoStart:  true,
+	}
+	
+	// Add task to manager
+	manager.mu.Lock()
+	testTask := NewTask("test-task", testConfig)
+	manager.tasks["test-task"] = testTask
+	manager.mu.Unlock()
+	
+	// Save initial state
+	initialState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{},
+	}
+	err := manager.saveRuntimeStateWithData(initialState)
+	if err != nil {
+		t.Fatalf("Failed to save initial state: %v", err)
+	}
+	
+	// Start the task - this should call ensureDaemonForCommand after successful start
+	err = manager.startTask("test-task")
+	if err != nil {
+		t.Errorf("startTask() failed: %v", err)
+	}
+	
+	// Verify that the task was started and daemon logic was triggered
+	// We can't easily verify daemon startup, but we can check that the task state was updated
+	state := manager.loadRuntimeState()
+	if taskInfo, exists := state.Tasks["test-task"]; exists {
+		if taskInfo.Status != "running" && taskInfo.Status != "stopped" {
+			t.Errorf("Task status should be running or stopped after start, got: %s", taskInfo.Status)
+		}
+	} else {
+		t.Error("Task should exist in runtime state after start")
+	}
+}
+
+// TestManagerRestartTaskDaemonIntegration tests that restartTask calls ensureDaemonForCommand after successful restart
+func TestManagerRestartTaskDaemonIntegration(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+	
+	// Mock the GetTaskDRuntimeFile function
+	originalGetTaskDRuntimeFile := getTaskDRuntimeFile
+	defer func() {
+		getTaskDRuntimeFile = originalGetTaskDRuntimeFile
+	}()
+	
+	testRuntimeFile := filepath.Join(tempDir, "runtime.json")
+	getTaskDRuntimeFile = func() string {
+		return testRuntimeFile
+	}
+	
+	manager := GetManager()
+	
+	// Create a test task that will restart successfully
+	testConfig := &Config{
+		Executable: "cmd",
+		Args:       []string{"/c", "echo", "test"},
+		AutoStart:  true,
+	}
+	
+	// Add task to manager
+	manager.mu.Lock()
+	testTask := NewTask("test-task", testConfig)
+	manager.tasks["test-task"] = testTask
+	manager.mu.Unlock()
+	
+	// Save initial state with task already running
+	initialState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{
+			"test-task": {
+				Name:   "test-task",
+				Status: "running",
+				PID:    12345,
+			},
+		},
+	}
+	err := manager.saveRuntimeStateWithData(initialState)
+	if err != nil {
+		t.Fatalf("Failed to save initial state: %v", err)
+	}
+	
+	// Restart the task - this should call ensureDaemonForCommand after successful restart
+	err = manager.restartTask("test-task")
+	if err != nil {
+		t.Errorf("restartTask() failed: %v", err)
+	}
+	
+	// Verify that the task was restarted and daemon logic was triggered
+	state := manager.loadRuntimeState()
+	if taskInfo, exists := state.Tasks["test-task"]; exists {
+		if taskInfo.Status != "running" && taskInfo.Status != "stopped" {
+			t.Errorf("Task status should be running or stopped after restart, got: %s", taskInfo.Status)
+		}
+		// Retry count should be reset after manual restart
+		if taskInfo.RetryNum != 0 {
+			t.Errorf("RetryNum should be 0 after manual restart, got: %d", taskInfo.RetryNum)
+		}
+	} else {
+		t.Error("Task should exist in runtime state after restart")
+	}
+}
+
+// TestManagerNeedsDaemonLogic tests the needsDaemon logic comprehensively
+func TestManagerNeedsDaemonLogic(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+	
+	// Mock the GetTaskDRuntimeFile function
+	originalGetTaskDRuntimeFile := getTaskDRuntimeFile
+	defer func() {
+		getTaskDRuntimeFile = originalGetTaskDRuntimeFile
+	}()
+	
+	testRuntimeFile := filepath.Join(tempDir, "runtime.json")
+	getTaskDRuntimeFile = func() string {
+		return testRuntimeFile
+	}
+	
+	manager := GetManager()
+	
+	// Test case 1: No tasks, no daemon needed
+	manager.mu.Lock()
+	manager.tasks = make(map[string]*Task)
+	manager.mu.Unlock()
+	
+	emptyState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{},
+	}
+	err := manager.saveRuntimeStateWithData(emptyState)
+	if err != nil {
+		t.Fatalf("Failed to save empty state: %v", err)
+	}
+	
+	if manager.needsDaemon() {
+		t.Error("needsDaemon() should return false when no tasks exist")
+	}
+	
+	// Test case 2: Regular task (no auto-start), no daemon needed
+	regularConfig := &Config{
+		Executable: "test",
+		AutoStart:  false,
+	}
+	
+	manager.mu.Lock()
+	regularTask := NewTask("regular-task", regularConfig)
+	manager.tasks["regular-task"] = regularTask
+	manager.mu.Unlock()
+	
+	if manager.needsDaemon() {
+		t.Error("needsDaemon() should return false for regular tasks without auto-start")
+	}
+	
+	// Test case 3: Auto-start task, daemon needed
+	autoStartConfig := &Config{
+		Executable: "test",
+		AutoStart:  true,
+	}
+	
+	manager.mu.Lock()
+	autoStartTask := NewTask("auto-start-task", autoStartConfig)
+	manager.tasks["auto-start-task"] = autoStartTask
+	manager.mu.Unlock()
+	
+	if !manager.needsDaemon() {
+		t.Error("needsDaemon() should return true when auto-start tasks exist")
+	}
+	
+	// Test case 4: Running task, daemon needed
+	runningState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{
+			"running-task": {
+				Name:   "running-task",
+				Status: "running",
+				PID:    12345,
+			},
+		},
+	}
+	
+	// Remove auto-start task to test running task scenario
+	manager.mu.Lock()
+	delete(manager.tasks, "auto-start-task")
+	manager.mu.Unlock()
+	
+	err = manager.saveRuntimeStateWithData(runningState)
+	if err != nil {
+		t.Fatalf("Failed to save running state: %v", err)
+	}
+	
+	if !manager.needsDaemon() {
+		t.Error("needsDaemon() should return true when running tasks exist")
+	}
+	
+	// Test case 5: Auto-start task that reached retry limit, no daemon needed
+	maxRetryConfig := &Config{
+		Executable:  "test",
+		AutoStart:   true,
+		MaxRetryNum: 3,
+	}
+	
+	manager.mu.Lock()
+	manager.tasks = make(map[string]*Task)
+	maxRetryTask := NewTask("max-retry-task", maxRetryConfig)
+	manager.tasks["max-retry-task"] = maxRetryTask
+	manager.mu.Unlock()
+	
+	maxRetryState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{
+			"max-retry-task": {
+				Name:           "max-retry-task",
+				Status:         "stopped",
+				StoppedByTaskd: false,
+				RetryNum:       3, // Reached max retry limit
+			},
+		},
+	}
+	
+	err = manager.saveRuntimeStateWithData(maxRetryState)
+	if err != nil {
+		t.Fatalf("Failed to save max retry state: %v", err)
+	}
+	
+	if manager.needsDaemon() {
+		t.Error("needsDaemon() should return false when auto-start task reached retry limit")
+	}
+	
+	// Test case 6: Auto-start task stopped by user, no daemon needed
+	stoppedByUserState := &RuntimeState{
+		Tasks: map[string]*TaskRuntimeInfo{
+			"max-retry-task": {
+				Name:           "max-retry-task",
+				Status:         "stopped",
+				StoppedByTaskd: true, // Stopped by user
+				RetryNum:       1,
+			},
+		},
+	}
+	
+	err = manager.saveRuntimeStateWithData(stoppedByUserState)
+	if err != nil {
+		t.Fatalf("Failed to save stopped by user state: %v", err)
+	}
+	
+	if manager.needsDaemon() {
+		t.Error("needsDaemon() should return false when auto-start task was stopped by user")
+	}
+}

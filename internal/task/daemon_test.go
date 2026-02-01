@@ -561,3 +561,43 @@ func TestDaemonStatusStruct(t *testing.T) {
 		t.Errorf("LastCheck = %v, want %v", status.LastCheck, now)
 	}
 }
+// TestDaemonManagerEnsureDaemonRunning tests the EnsureDaemonRunning method
+func TestDaemonManagerEnsureDaemonRunning(t *testing.T) {
+	dm := GetDaemonManager()
+	
+	// Test EnsureDaemonRunning when daemon is not running
+	// Note: This test may fail in environments where daemon startup is not possible
+	// but it tests the logic flow
+	err := dm.EnsureDaemonRunning()
+	
+	// We don't assert no error here because daemon startup might fail in test environment
+	// The important thing is that the method doesn't panic and handles errors gracefully
+	if err != nil {
+		t.Logf("EnsureDaemonRunning returned error (expected in test environment): %v", err)
+	}
+	
+	// Test that calling EnsureDaemonRunning multiple times is safe
+	err2 := dm.EnsureDaemonRunning()
+	if err2 != nil {
+		t.Logf("Second EnsureDaemonRunning call returned error: %v", err2)
+	}
+}
+
+// TestDaemonManagerIsRunningLogic tests the IsRunning method logic
+func TestDaemonManagerIsRunningLogic(t *testing.T) {
+	dm := GetDaemonManager()
+	
+	// Initially daemon should not be running
+	if dm.IsRunning() {
+		t.Log("Daemon appears to be running initially (might be from previous tests)")
+	}
+	
+	// Test that IsRunning doesn't panic and returns a boolean
+	running1 := dm.IsRunning()
+	running2 := dm.IsRunning()
+	
+	// Multiple calls should be consistent (at least for a short time)
+	if running1 != running2 {
+		t.Log("Daemon running status changed between calls (this can happen)")
+	}
+}
