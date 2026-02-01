@@ -153,10 +153,23 @@ func (m *Manager) addTask(taskName string, config *Config) error {
 }
 
 func (m *Manager) listTasks() ([]*TaskInfo, error) {
+	// 确保守护进程运行（如果需要）
+	if err := m.ensureDaemonForCommand(); err != nil {
+		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
+		// 继续执行，不因守护进程启动失败而阻止列表显示
+	}
+	
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	var tasks []*TaskInfo
+	
+	// 首先添加守护进程任务（如果存在）
+	if daemonInfo, err := m.getBuiltinTaskStatus("taskd"); err == nil {
+		tasks = append(tasks, daemonInfo)
+	}
+	
+	// 然后添加其他任务
 	for _, task := range m.tasks {
 		info := task.GetInfo()
 		tasks = append(tasks, info)
@@ -191,6 +204,12 @@ func (m *Manager) GetTaskStatus(name string) (*TaskInfo, error) {
 }
 
 func (m *Manager) startTask(name string) error {
+	// 在启动任务前确保守护进程运行（如果需要）
+	if err := m.ensureDaemonForCommand(); err != nil {
+		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
+		// 继续执行，不因守护进程启动失败而阻止任务启动
+	}
+	
 	// Check if this is a builtin task
 	if m.builtinHandler.IsBuiltinTask(name) {
 		// For builtin tasks, we need to handle them specially
@@ -336,6 +355,10 @@ func (m *Manager) stopTask(name string) error {
 	}
 
 	err := task.Stop()
+	
+	// Set StoppedByTaskd flag when manually stopping a task
+	m.setTaskStoppedByTaskd(name, true)
+	
 	// Always save runtime state after stop attempt, regardless of success
 	// This ensures that even if the task was already stopped, the state is consistent
 	m.saveRuntimeState()
@@ -361,6 +384,22 @@ func (m *Manager) getTaskStatus(name string) (*TaskInfo, error) {
 }
 
 func (m *Manager) restartTask(name string) error {
+	// 在重启任务前确保守护进程运行（如果需要）
+	if err := m.ensureDaemonForCommand(); err != nil {
+		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
+		// 继续执行，不因守护进程启动失败而阻止任务重启
+	}
+	
+	// Check if this is a builtin task
+	if m.builtinHandler.IsBuiltinTask(name) {
+		// For builtin tasks, restart means stop then start
+		if err := m.stopBuiltinTask(name); err != nil {
+			// If stop fails, still try to start (maybe it wasn't running)
+			fmt.Printf("Warning: Failed to stop builtin task %s: %v\n", name, err)
+		}
+		return m.startBuiltinTask(name)
+	}
+	
 	m.mu.RLock()
 	task, exists := m.tasks[name]
 	m.mu.RUnlock()
@@ -602,6 +641,12 @@ func (m *Manager) ReloadTask(name string) error {
 }
 
 func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
+	// 确保守护进程运行（如果需要）
+	if err := m.ensureDaemonForCommand(); err != nil {
+		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
+		// 继续执行，不因守护进程启动失败而阻止信息显示
+	}
+	
 	// Check if this is a builtin task
 	if m.builtinHandler.IsBuiltinTask(name) {
 		return m.getBuiltinTaskDetailInfo(name)
@@ -665,4 +710,83 @@ func (m *Manager) resetTaskRetryCount(taskName string) {
 	if err := m.saveRuntimeStateWithData(state); err != nil {
 		fmt.Printf("Warning: Failed to reset retry count for task %s: %v\n", taskName, err)
 	}
+}
+
+// setTaskStoppedByTaskd 设置任务的 StoppedByTaskd 标记
+func (m *Manager) setTaskStoppedByTaskd(taskName string, stoppedByTaskd bool) {
+	state := m.loadRuntimeState()
+	if state.Tasks == nil {
+		return
+	}
+	
+	runtimeInfo, exists := state.Tasks[taskName]
+	if !exists {
+		return
+	}
+	
+	// 设置 StoppedByTaskd 标记
+	runtimeInfo.StoppedByTaskd = stoppedByTaskd
+	
+	// 如果是手动停止，同时更新结束时间
+	if stoppedByTaskd {
+		runtimeInfo.EndTime = time.Now()
+		runtimeInfo.Status = "stopped"
+		runtimeInfo.PID = 0
+	}
+	
+	// 保存更新后的状态
+	if err := m.saveRuntimeStateWithData(state); err != nil {
+		fmt.Printf("Warning: Failed to set StoppedByTaskd flag for task %s: %v\n", taskName, err)
+	}
+}
+
+// ensureDaemonForCommand 确保守护进程在需要时运行
+func (m *Manager) ensureDaemonForCommand() error {
+	// 检查是否需要守护进程
+	if m.needsDaemon() {
+		daemonManager := GetDaemonManager()
+		return daemonManager.EnsureDaemonRunning()
+	}
+	return nil
+}
+
+// needsDaemon 检查是否需要守护进程
+func (m *Manager) needsDaemon() bool {
+	// 检查是否有运行中的任务或自动启动任务
+	return m.hasRunningTasks() || m.hasAutoStartTasks()
+}
+
+// hasRunningTasks 检查是否有运行中的任务
+func (m *Manager) hasRunningTasks() bool {
+	state := m.loadRuntimeState()
+	if state.Tasks == nil {
+		return false
+	}
+	
+	for taskName, runtimeInfo := range state.Tasks {
+		// 跳过守护进程本身
+		if taskName == "taskd" {
+			continue
+		}
+		
+		if runtimeInfo.Status == "running" {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// hasAutoStartTasks 检查是否有自动启动任务
+func (m *Manager) hasAutoStartTasks() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	for _, task := range m.tasks {
+		if task.config.AutoStart {
+			return true
+		}
+	}
+	
+	return false
 }
