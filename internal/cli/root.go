@@ -31,6 +31,11 @@ Features:
 	},
 }
 
+// SetVersion sets the version for the root command
+func SetVersion(v string) {
+	rootCmd.Version = v
+}
+
 func Execute() error {
 	return rootCmd.Execute()
 }

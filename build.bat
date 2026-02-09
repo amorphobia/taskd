@@ -34,7 +34,8 @@ goto :eof
 :build
 echo Building %BINARY_NAME%...
 if not exist %BUILD_DIR% mkdir %BUILD_DIR%
-go build -o %BUILD_DIR%\%BINARY_NAME%.exe %MAIN_PATH%
+set /p VERSION=<VERSION
+go build -ldflags "-X main.version=%VERSION%" -o %BUILD_DIR%\%BINARY_NAME%.exe %MAIN_PATH%
 goto :eof
 
 :dev
@@ -88,15 +89,16 @@ goto :eof
 :build-all
 echo Cross compiling...
 if not exist %BUILD_DIR% mkdir %BUILD_DIR%
+set /p VERSION=<VERSION
 set GOOS=windows
 set GOARCH=amd64
-go build -o %BUILD_DIR%\%BINARY_NAME%-windows-amd64.exe %MAIN_PATH%
+go build -ldflags "-X main.version=%VERSION%" -o %BUILD_DIR%\%BINARY_NAME%-windows-amd64.exe %MAIN_PATH%
 set GOOS=linux
 set GOARCH=amd64
-go build -o %BUILD_DIR%\%BINARY_NAME%-linux-amd64 %MAIN_PATH%
+go build -ldflags "-X main.version=%VERSION%" -o %BUILD_DIR%\%BINARY_NAME%-linux-amd64 %MAIN_PATH%
 set GOOS=darwin
 set GOARCH=amd64
-go build -o %BUILD_DIR%\%BINARY_NAME%-darwin-amd64 %MAIN_PATH%
+go build -ldflags "-X main.version=%VERSION%" -o %BUILD_DIR%\%BINARY_NAME%-darwin-amd64 %MAIN_PATH%
 goto :eof
 
 :run

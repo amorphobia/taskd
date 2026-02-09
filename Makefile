@@ -6,6 +6,7 @@
 BINARY_NAME=taskd
 BUILD_DIR=build
 MAIN_PATH=cmd/taskd/main.go
+VERSION=$(shell cat VERSION)
 
 # Default target
 all: build
@@ -13,8 +14,8 @@ all: build
 # Build
 build:
 	@echo "Building $(BINARY_NAME)..."
-	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY_NAME).exe $(MAIN_PATH)
+	@mkdir $(BUILD_DIR)
+	go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY_NAME).exe $(MAIN_PATH)
 
 # Development build
 dev:
@@ -66,10 +67,10 @@ deps:
 # Cross compile
 build-all:
 	@echo "Cross compiling..."
-	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(MAIN_PATH)
-	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(MAIN_PATH)
-	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 $(MAIN_PATH)
+	@mkdir $(BUILD_DIR)
+	GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(MAIN_PATH)
+	GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(MAIN_PATH)
+	GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 $(MAIN_PATH)
 
 # Run
 run:

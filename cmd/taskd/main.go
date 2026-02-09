@@ -11,7 +11,21 @@ import (
 	"taskd/internal/task"
 )
 
+// version is set at build time via -ldflags
+var version = "develop"
+
 func main() {
+	// Set version for CLI
+	cli.SetVersion(version)
+	
+	// Check for version flag
+	for _, arg := range os.Args[1:] {
+		if arg == "--version" || arg == "-v" {
+			fmt.Printf("taskd %s\n", version)
+			return
+		}
+	}
+	
 	// Check command line arguments directly for --daemon flag
 	for _, arg := range os.Args[1:] {
 		if arg == "--daemon" {
