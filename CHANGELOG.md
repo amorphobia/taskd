@@ -1,5 +1,20 @@
 # TaskD Changelog
 
+## [Unreleased]
+
+### Fixed
+- Process detachment issue on Windows: Tasks and daemon now properly detach from parent terminal
+  - Added `DETACHED_PROCESS` flag to prevent processes from being killed when terminal closes
+  - Both daemon and user tasks now survive terminal closure
+  - Processes run in their own process group independent of the parent session
+
+### Added
+- Version support following Go conventions (v0.1.0)
+  - Version constant in main.go (defaults to "develop")
+  - Build-time version injection via ldflags from VERSION file
+  - `--version` and `-v` flags to display version
+  - Cobra version command integration
+
 ## [0.1.0] - 2026-01-27
 
 ### Added

@@ -811,9 +811,12 @@ func (dm *DaemonManager) StartDaemon() error {
 	cmd := exec.Command(execPath, "--daemon")
 	cmd.Dir = config.GetTaskDHome()
 	
-	// Set process attributes for proper daemon behavior
+	// Set process attributes for proper daemon behavior on Windows
+	// DETACHED_PROCESS creates a process without a console window
+	// CREATE_NEW_PROCESS_GROUP creates a new process group
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | 0x00000008, // 0x00000008 is DETACHED_PROCESS
+		HideWindow:    true,
 	}
 	
 	// Start the process

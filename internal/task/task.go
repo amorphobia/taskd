@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -66,6 +67,14 @@ func (t *Task) Start() error {
 	
 	// Create command
 	cmd := exec.CommandContext(t.ctx, executable, args...)
+	
+	// Set process attributes for proper background execution on Windows
+	// DETACHED_PROCESS creates a process without a console window
+	// CREATE_NEW_PROCESS_GROUP creates a new process group
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | 0x00000008, // 0x00000008 is DETACHED_PROCESS
+		HideWindow:    true,
+	}
 	
 	// Set working directory
 	// Always set working directory - use config value or default to user home
