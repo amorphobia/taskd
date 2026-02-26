@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
-	"time"
 	"taskd/internal/config"
-	
+	"time"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -42,12 +42,12 @@ func (tm *TaskMonitor) Start() {
 	}
 	tm.isRunning = true
 	tm.mu.Unlock()
-	
+
 	fmt.Printf("TaskMonitor: Starting monitoring with interval %v\n", tm.checkInterval)
-	
+
 	ticker := time.NewTicker(tm.checkInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -70,7 +70,7 @@ func (tm *TaskMonitor) Stop() {
 		return // Not running
 	}
 	tm.mu.RUnlock()
-	
+
 	close(tm.stopChan)
 }
 
@@ -88,19 +88,19 @@ func (tm *TaskMonitor) checkAndRestartTasks() {
 	if state.Tasks == nil {
 		return
 	}
-	
+
 	// 2. Check status of each task
 	for taskName, runtimeInfo := range state.Tasks {
 		// Skip daemon itself
 		if taskName == "taskd" {
 			continue
 		}
-		
+
 		// Only check tasks marked as running
 		if runtimeInfo.Status == "running" {
 			tm.checkTaskProcess(taskName, runtimeInfo)
 		}
-		
+
 		// Check if auto-restart is needed
 		if tm.shouldRetryTask(taskName, runtimeInfo) {
 			tm.retryTask(taskName)
@@ -114,18 +114,18 @@ func (tm *TaskMonitor) checkAndRestartTasks() {
 func (tm *TaskMonitor) checkTaskProcess(taskName string, runtimeInfo *TaskRuntimeInfo) {
 	checker := NewProcessChecker()
 	status, err := checker.CheckTaskProcess(runtimeInfo.PID)
-	
+
 	if err != nil {
-		fmt.Printf("TaskMonitor: Error checking process for task %s (PID %d): %v\n", 
+		fmt.Printf("TaskMonitor: Error checking process for task %s (PID %d): %v\n",
 			taskName, runtimeInfo.PID, err)
 		return
 	}
-	
+
 	// If process doesn't exist, update task status to stopped
 	if !status.Exists {
-		fmt.Printf("TaskMonitor: Task %s (PID %d) process no longer exists, updating status\n", 
+		fmt.Printf("TaskMonitor: Task %s (PID %d) process no longer exists, updating status\n",
 			taskName, runtimeInfo.PID)
-		
+
 		// Try to get exit code
 		exitCode := tm.getProcessExitCode(runtimeInfo.PID)
 		tm.updateTaskExitedStatus(taskName, runtimeInfo, exitCode)
@@ -153,17 +153,17 @@ func (tm *TaskMonitor) updateTaskExitedStatus(taskName string, runtimeInfo *Task
 		StartTime:      runtimeInfo.StartTime,
 		EndTime:        time.Now(),
 		ExitCode:       exitCode,
-		StoppedByTaskd: false, // Process exited naturally, not stopped by user
+		StoppedByTaskd: false,                // Process exited naturally, not stopped by user
 		RetryNum:       runtimeInfo.RetryNum, // Keep retry count
 	}
-	
+
 	// Update runtime state
 	state := tm.manager.loadRuntimeState()
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
 	state.Tasks[taskName] = updatedInfo
-	
+
 	if err := tm.manager.saveRuntimeStateWithData(state); err != nil {
 		fmt.Printf("TaskMonitor: Error updating runtime state for task %s: %v\n", taskName, err)
 	} else {
@@ -177,13 +177,13 @@ func (tm *TaskMonitor) updateTaskState(taskName string, updatedInfo *TaskRuntime
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
-	
+
 	state.Tasks[taskName] = updatedInfo
-	
+
 	if err := tm.manager.saveRuntimeStateWithData(state); err != nil {
 		return fmt.Errorf("failed to update runtime state for task %s: %w", taskName, err)
 	}
-	
+
 	return nil
 }
 
@@ -193,13 +193,13 @@ func (tm *TaskMonitor) shouldRetryTask(taskName string, runtimeInfo *TaskRuntime
 	if taskName == "taskd" {
 		return false
 	}
-	
+
 	// Get task configuration
 	config := tm.getTaskConfig(taskName)
 	if config == nil {
 		return false
 	}
-	
+
 	// Check restart conditions:
 	// 1. Task configuration has auto_start = true
 	// 2. Task status is stopped
@@ -217,35 +217,35 @@ func (tm *TaskMonitor) getTaskConfig(taskName string) *Config {
 	if tm.manager.builtinHandler.IsBuiltinTask(taskName) {
 		return tm.manager.builtinHandler.GetBuiltinTaskConfig(taskName)
 	}
-	
+
 	// Load regular task configuration from file
 	configPath := filepath.Join(config.GetTaskDTasksDir(), taskName+".toml")
 	var taskConfig Config
-	
+
 	if _, err := toml.DecodeFile(configPath, &taskConfig); err != nil {
 		fmt.Printf("TaskMonitor: Error loading config for task %s: %v\n", taskName, err)
 		return nil
 	}
-	
+
 	return &taskConfig
 }
 
 // retryTask performs task auto-restart
 func (tm *TaskMonitor) retryTask(taskName string) {
 	fmt.Printf("TaskMonitor: Attempting to restart task %s\n", taskName)
-	
+
 	// 1. Start the task
 	if err := tm.manager.StartTask(taskName); err != nil {
 		fmt.Printf("TaskMonitor: Failed to restart task %s: %v\n", taskName, err)
 		tm.handleRetryFailure(taskName, err)
 		return
 	}
-	
+
 	// 2. Update retry count
 	if err := tm.incrementRetryCount(taskName); err != nil {
 		fmt.Printf("TaskMonitor: Failed to update retry count for task %s: %v\n", taskName, err)
 	}
-	
+
 	fmt.Printf("TaskMonitor: Successfully restarted task %s\n", taskName)
 }
 
@@ -255,15 +255,15 @@ func (tm *TaskMonitor) incrementRetryCount(taskName string) error {
 	if state.Tasks == nil {
 		return fmt.Errorf("no runtime state found")
 	}
-	
+
 	runtimeInfo, exists := state.Tasks[taskName]
 	if !exists {
 		return fmt.Errorf("task %s not found in runtime state", taskName)
 	}
-	
+
 	// Increment retry count
 	runtimeInfo.RetryNum++
-	
+
 	// Save updated state
 	return tm.manager.saveRuntimeStateWithData(state)
 }
@@ -272,7 +272,7 @@ func (tm *TaskMonitor) incrementRetryCount(taskName string) error {
 func (tm *TaskMonitor) handleRetryFailure(taskName string, err error) {
 	// Log error info, but don't affect monitoring of other tasks
 	fmt.Printf("TaskMonitor: Retry failed for task %s: %v\n", taskName, err)
-	
+
 	// Update task status, mark restart failure
 	state := tm.manager.loadRuntimeState()
 	if state.Tasks != nil {
@@ -288,14 +288,14 @@ func (tm *TaskMonitor) handleRetryFailure(taskName string, err error) {
 				StoppedByTaskd: false,
 				RetryNum:       runtimeInfo.RetryNum, // Keep current retry count
 			}
-			
+
 			// Update state
 			if updateErr := tm.updateTaskState(taskName, failedInfo); updateErr != nil {
 				fmt.Printf("TaskMonitor: Failed to update task state after retry failure: %v\n", updateErr)
 			}
 		}
 	}
-	
+
 	// Additional error handling logic can be added here, such as:
 	// - Log to file
 	// - Send notifications
@@ -308,13 +308,13 @@ func (tm *TaskMonitor) shouldLogRetryLimitReached(taskName string, runtimeInfo *
 	if taskName == "taskd" {
 		return false
 	}
-	
+
 	// Get task configuration
 	config := tm.getTaskConfig(taskName)
 	if config == nil {
 		return false
 	}
-	
+
 	// Check if it's an auto-start task that has reached retry limit
 	return config.AutoStart &&
 		runtimeInfo.Status == "stopped" &&
@@ -329,7 +329,7 @@ func (tm *TaskMonitor) logRetryLimitReached(taskName string, runtimeInfo *TaskRu
 	if config == nil {
 		return
 	}
-	
+
 	fmt.Printf("TaskMonitor: Task %s has reached maximum retry limit (%d/%d), stopping automatic restart attempts\n",
 		taskName, runtimeInfo.RetryNum, config.MaxRetryNum)
 }
@@ -359,18 +359,18 @@ func NewFileStateManager(statePath string) *FileStateManager {
 func (fsm *FileStateManager) UpdateTaskState(name string, info *TaskRuntimeInfo) error {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
-	
+
 	state, err := fsm.loadRuntimeStateUnsafe()
 	if err != nil {
 		return fmt.Errorf("failed to load runtime state: %w", err)
 	}
-	
+
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
-	
+
 	state.Tasks[name] = info
-	
+
 	return fsm.saveRuntimeStateUnsafe(state)
 }
 
@@ -385,11 +385,11 @@ func (fsm *FileStateManager) UpdateDaemonState(status *DaemonStatus) error {
 		StoppedByTaskd: false,
 		RetryNum:       0,
 	}
-	
+
 	if status.IsRunning {
 		daemonInfo.Status = "running"
 	}
-	
+
 	return fsm.UpdateTaskState("taskd", daemonInfo)
 }
 
@@ -397,7 +397,7 @@ func (fsm *FileStateManager) UpdateDaemonState(status *DaemonStatus) error {
 func (fsm *FileStateManager) GetRuntimeState() (*RuntimeState, error) {
 	fsm.mu.RLock()
 	defer fsm.mu.RUnlock()
-	
+
 	return fsm.loadRuntimeStateUnsafe()
 }
 
@@ -405,7 +405,7 @@ func (fsm *FileStateManager) GetRuntimeState() (*RuntimeState, error) {
 func (fsm *FileStateManager) SaveRuntimeState(state *RuntimeState) error {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
-	
+
 	return fsm.saveRuntimeStateUnsafe(state)
 }
 
@@ -413,21 +413,21 @@ func (fsm *FileStateManager) SaveRuntimeState(state *RuntimeState) error {
 func (fsm *FileStateManager) BatchUpdate(updates map[string]*TaskRuntimeInfo) error {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
-	
+
 	state, err := fsm.loadRuntimeStateUnsafe()
 	if err != nil {
 		return fmt.Errorf("failed to load runtime state: %w", err)
 	}
-	
+
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
-	
+
 	// Batch update
 	for name, info := range updates {
 		state.Tasks[name] = info
 	}
-	
+
 	return fsm.saveRuntimeStateUnsafe(state)
 }
 
@@ -441,25 +441,25 @@ func (fsm *FileStateManager) loadRuntimeStateUnsafe() (*RuntimeState, error) {
 		}
 		return nil, fmt.Errorf("failed to read state file: %w", err)
 	}
-	
+
 	var state RuntimeState
 	if err := json.Unmarshal(data, &state); err != nil {
 		// JSON parsing failed, attempt recovery
 		fmt.Printf("Warning: State file corrupted, attempting recovery: %v\n", err)
-		
+
 		if recoveredState, recoverErr := fsm.recoverCorruptedState(); recoverErr == nil {
 			return recoveredState, nil
 		}
-		
+
 		// Recovery failed, return empty state and backup corrupted file
 		fsm.backupCorruptedState()
 		return &RuntimeState{Tasks: make(map[string]*TaskRuntimeInfo)}, nil
 	}
-	
+
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
-	
+
 	return &state, nil
 }
 
@@ -469,31 +469,31 @@ func (fsm *FileStateManager) recoverCorruptedState() (*RuntimeState, error) {
 	backupPath := fsm.statePath + ".backup"
 	if _, err := os.Stat(backupPath); err == nil {
 		fmt.Printf("Attempting to recover from backup file: %s\n", backupPath)
-		
+
 		data, err := os.ReadFile(backupPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read backup file: %w", err)
 		}
-		
+
 		var state RuntimeState
 		if err := json.Unmarshal(data, &state); err != nil {
 			return nil, fmt.Errorf("backup file also corrupted: %w", err)
 		}
-		
+
 		if state.Tasks == nil {
 			state.Tasks = make(map[string]*TaskRuntimeInfo)
 		}
-		
+
 		// Recovery successful, save to main file
 		if err := fsm.saveRuntimeStateUnsafe(&state); err != nil {
 			fmt.Printf("Warning: Failed to save recovered state: %v\n", err)
 		} else {
 			fmt.Println("Successfully recovered state from backup")
 		}
-		
+
 		return &state, nil
 	}
-	
+
 	return nil, fmt.Errorf("no backup file available")
 }
 
@@ -513,7 +513,7 @@ func (fsm *FileStateManager) saveRuntimeStateUnsafe(state *RuntimeState) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal state data: %w", err)
 	}
-	
+
 	// Create backup (if main file exists)
 	if _, err := os.Stat(fsm.statePath); err == nil {
 		backupPath := fsm.statePath + ".backup"
@@ -521,22 +521,22 @@ func (fsm *FileStateManager) saveRuntimeStateUnsafe(state *RuntimeState) error {
 			fmt.Printf("Warning: Failed to create backup: %v\n", err)
 		}
 	}
-	
+
 	// Atomic update: write to temp file first, then rename
 	tempPath := fsm.statePath + ".tmp"
-	
+
 	// Write to temp file
 	if err := os.WriteFile(tempPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write temp state file: %w", err)
 	}
-	
+
 	// Atomic rename
 	if err := os.Rename(tempPath, fsm.statePath); err != nil {
 		// Clean up temp file
 		os.Remove(tempPath)
 		return fmt.Errorf("failed to rename temp state file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -567,7 +567,7 @@ func (pc *ProcessChecker) CheckTaskProcess(pid int) (*ProcessStatus, error) {
 			ExecutablePath: "",
 		}, nil
 	}
-	
+
 	// Try to find the process
 	_, err := os.FindProcess(pid)
 	if err != nil {
@@ -578,12 +578,12 @@ func (pc *ProcessChecker) CheckTaskProcess(pid int) (*ProcessStatus, error) {
 			ExecutablePath: "",
 		}, nil
 	}
-	
+
 	// Check if process is still running
 	// On Windows, we'll use a different approach since Signal(0) may not be reliable
 	// We'll assume that if os.FindProcess succeeds and we can get the process,
 	// then the process exists. This is a simplified approach.
-	
+
 	// Process exists, now check if it's a taskd process
 	// This is critical for PID reuse detection
 	execPath, isTaskd, err := pc.getProcessExecutablePath(pid)
@@ -596,7 +596,7 @@ func (pc *ProcessChecker) CheckTaskProcess(pid int) (*ProcessStatus, error) {
 			ExecutablePath: "",
 		}, nil
 	}
-	
+
 	return &ProcessStatus{
 		Exists:         true,
 		IsTaskd:        isTaskd,
@@ -612,11 +612,11 @@ func (pc *ProcessChecker) CheckTaskProcessWithValidation(pid int, expectedExecPa
 	if err != nil {
 		return status, err
 	}
-	
+
 	if !status.Exists {
 		return status, nil
 	}
-	
+
 	// If we have an expected executable path, validate it
 	if expectedExecPath != "" && status.ExecutablePath != "" {
 		// Compare executable paths to detect PID reuse
@@ -625,7 +625,7 @@ func (pc *ProcessChecker) CheckTaskProcessWithValidation(pid int, expectedExecPa
 			status.IsTaskd = false
 		}
 	}
-	
+
 	return status, nil
 }
 
@@ -636,15 +636,15 @@ func (pc *ProcessChecker) getProcessExecutablePath(pid int) (string, bool, error
 	if err != nil {
 		return "", false, fmt.Errorf("failed to get current executable path: %w", err)
 	}
-	
+
 	// For this implementation, we'll assume that if the process exists and we can access it,
 	// it's likely to be taskd. In a production system, you would use Windows API to get
 	// the actual executable path and compare it.
-	
+
 	// Since we're dealing with processes we started ourselves, and we're checking the PID
 	// that we recorded when we started the process, it's reasonable to assume it's taskd
 	// if the process still exists.
-	
+
 	return currentExec, true, nil
 }
 
@@ -652,20 +652,20 @@ func (pc *ProcessChecker) getProcessExecutablePath(pid int) (string, bool, error
 func (pc *ProcessChecker) GetProcessExitCode(pid int) (int, error) {
 	// This is a simplified implementation for Windows
 	// In a production system, you would use Windows API calls like GetExitCodeProcess
-	
+
 	// Try to find the process
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		// Process doesn't exist, we can't get exit code
 		return 0, fmt.Errorf("process %d not found", pid)
 	}
-	
+
 	// Check if process is still running
 	if err := process.Signal(syscall.Signal(0)); err == nil {
 		// Process is still running, no exit code available
 		return 0, fmt.Errorf("process %d is still running", pid)
 	}
-	
+
 	// Process has exited, but we can't easily get the exit code in Go without Windows API
 	// For now, return 0 (success) as a default
 	// In a real implementation, you would use Windows API to get the actual exit code
@@ -687,20 +687,20 @@ func NewDaemonStateManager() *DaemonStateManager {
 // SaveDaemonState saves the daemon state to persistent storage
 func (dsm *DaemonStateManager) SaveDaemonState(daemonInfo *TaskRuntimeInfo) error {
 	state := dsm.manager.loadRuntimeState()
-	
+
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
-	
+
 	state.Tasks["taskd"] = daemonInfo
-	
+
 	return dsm.manager.saveRuntimeStateWithData(state)
 }
 
 // LoadDaemonState loads the daemon state from persistent storage
 func (dsm *DaemonStateManager) LoadDaemonState() (*TaskRuntimeInfo, bool) {
 	state := dsm.manager.loadRuntimeState()
-	
+
 	daemonInfo, exists := state.Tasks["taskd"]
 	return daemonInfo, exists
 }
@@ -708,11 +708,11 @@ func (dsm *DaemonStateManager) LoadDaemonState() (*TaskRuntimeInfo, bool) {
 // ClearDaemonState removes the daemon state from persistent storage
 func (dsm *DaemonStateManager) ClearDaemonState() error {
 	state := dsm.manager.loadRuntimeState()
-	
+
 	if state.Tasks != nil {
 		delete(state.Tasks, "taskd")
 	}
-	
+
 	return dsm.manager.saveRuntimeStateWithData(state)
 }
 
@@ -728,7 +728,7 @@ func (dm *DaemonManager) updateDaemonStoppedStateWithManager(stateManager *Daemo
 		StoppedByTaskd: true, // Stopped by user command
 		RetryNum:       daemonInfo.RetryNum,
 	}
-	
+
 	return stateManager.SaveDaemonState(stoppedInfo)
 }
 
@@ -736,11 +736,11 @@ func (dm *DaemonManager) updateDaemonStoppedStateWithManager(stateManager *Daemo
 func (dm *DaemonManager) ValidateDaemonState() (*TaskRuntimeInfo, bool, error) {
 	stateManager := NewDaemonStateManager()
 	daemonInfo, exists := stateManager.LoadDaemonState()
-	
+
 	if !exists {
 		return nil, false, nil
 	}
-	
+
 	// If daemon is marked as running, verify the process actually exists
 	if daemonInfo.Status == "running" {
 		checker := NewProcessChecker()
@@ -748,7 +748,7 @@ func (dm *DaemonManager) ValidateDaemonState() (*TaskRuntimeInfo, bool, error) {
 		if err != nil {
 			return daemonInfo, false, fmt.Errorf("failed to check daemon process: %w", err)
 		}
-		
+
 		// If process doesn't exist or is not taskd, the state is inconsistent
 		if !status.Exists || !status.IsTaskd {
 			// Update state to reflect reality
@@ -761,15 +761,15 @@ func (dm *DaemonManager) ValidateDaemonState() (*TaskRuntimeInfo, bool, error) {
 				StoppedByTaskd: false, // Process died naturally
 				RetryNum:       daemonInfo.RetryNum,
 			}
-			
+
 			if err := stateManager.SaveDaemonState(stoppedInfo); err != nil {
 				return daemonInfo, false, fmt.Errorf("failed to update daemon state: %w", err)
 			}
-			
+
 			return stoppedInfo, false, nil
 		}
 	}
-	
+
 	return daemonInfo, true, nil
 }
 
@@ -795,38 +795,37 @@ func GetDaemonManager() *DaemonManager {
 func (dm *DaemonManager) StartDaemon() error {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
-	
+
 	// 1. Check if daemon is already running
 	if dm.isDaemonRunningLocked() {
 		return fmt.Errorf("daemon is already running")
 	}
-	
+
 	// 2. Get current executable path
 	execPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get current executable path: %w", err)
 	}
-	
+
 	// 3. Start daemon process
 	cmd := exec.Command(execPath, "--daemon")
 	cmd.Dir = config.GetTaskDHome()
-	
-	// Set process attributes for proper daemon behavior on Windows
-	// DETACHED_PROCESS creates a process without a console window
-	// CREATE_NEW_PROCESS_GROUP creates a new process group
+
+	// Set process attributes for proper daemon behavior
+	// On Windows this uses DETACHED_PROCESS to hide console window
+	// On Linux this is a no-op
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | 0x00000008, // 0x00000008 is DETACHED_PROCESS
-		HideWindow:    true,
+		// No special flags needed - cross-platform
 	}
-	
+
 	// Start the process
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start daemon process: %w", err)
 	}
-	
+
 	// Give the process a moment to start
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// 4. Update runtime state
 	daemonInfo := &TaskRuntimeInfo{
 		Name:           "taskd",
@@ -836,14 +835,14 @@ func (dm *DaemonManager) StartDaemon() error {
 		StoppedByTaskd: false,
 		RetryNum:       0,
 	}
-	
+
 	stateManager := NewDaemonStateManager()
 	if err := stateManager.SaveDaemonState(daemonInfo); err != nil {
 		// If we can't update state, try to kill the process we just started
 		cmd.Process.Kill()
 		return fmt.Errorf("failed to update daemon runtime state: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -851,27 +850,27 @@ func (dm *DaemonManager) StartDaemon() error {
 func (dm *DaemonManager) StopDaemon() error {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
-	
+
 	// 1. Load runtime state to get daemon PID
 	manager := GetManager()
 	state := manager.loadRuntimeState()
-	
+
 	daemonInfo, exists := state.Tasks["taskd"]
 	if !exists {
 		return fmt.Errorf("daemon is not running")
 	}
-	
+
 	if daemonInfo.Status != "running" {
 		return fmt.Errorf("daemon is not running (status: %s)", daemonInfo.Status)
 	}
-	
+
 	// 2. Find and terminate the daemon process
 	process, err := os.FindProcess(daemonInfo.PID)
 	if err != nil {
 		// Process doesn't exist, update state and return
 		return dm.updateDaemonStoppedState(daemonInfo)
 	}
-	
+
 	// 3. Try to terminate the process gracefully first
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		// If graceful termination fails, force kill
@@ -879,10 +878,10 @@ func (dm *DaemonManager) StopDaemon() error {
 			return fmt.Errorf("failed to kill daemon process (PID %d): %w", daemonInfo.PID, err)
 		}
 	}
-	
+
 	// 4. Wait a moment for the process to exit
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// 5. Update runtime state
 	stateManager := NewDaemonStateManager()
 	return dm.updateDaemonStoppedStateWithManager(stateManager, daemonInfo)
@@ -892,7 +891,7 @@ func (dm *DaemonManager) StopDaemon() error {
 func (dm *DaemonManager) IsRunning() bool {
 	dm.mu.RLock()
 	defer dm.mu.RUnlock()
-	
+
 	return dm.isDaemonRunningLocked()
 }
 
@@ -902,7 +901,7 @@ func (dm *DaemonManager) EnsureDaemonRunning() error {
 	if dm.IsRunning() {
 		return nil // Already running, nothing to do
 	}
-	
+
 	// Daemon is not running, start it
 	return dm.StartDaemon()
 }
@@ -912,18 +911,18 @@ func (dm *DaemonManager) isDaemonRunningLocked() bool {
 	// Load daemon state
 	stateManager := NewDaemonStateManager()
 	daemonInfo, exists := stateManager.LoadDaemonState()
-	
+
 	if !exists || daemonInfo.Status != "running" {
 		return false
 	}
-	
+
 	// Use ProcessChecker to validate the process
 	checker := NewProcessChecker()
 	status, err := checker.CheckTaskProcess(daemonInfo.PID)
 	if err != nil {
 		return false
 	}
-	
+
 	// Process must exist and be a taskd process
 	return status.Exists && status.IsTaskd
 }
@@ -932,13 +931,13 @@ func (dm *DaemonManager) isDaemonRunningLocked() bool {
 func (dm *DaemonManager) updateDaemonRuntimeState(daemonInfo *TaskRuntimeInfo) error {
 	manager := GetManager()
 	state := manager.loadRuntimeState()
-	
+
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
-	
+
 	state.Tasks["taskd"] = daemonInfo
-	
+
 	// Save the updated state
 	return manager.saveRuntimeStateWithData(state)
 }
@@ -947,11 +946,11 @@ func (dm *DaemonManager) updateDaemonRuntimeState(daemonInfo *TaskRuntimeInfo) e
 func (dm *DaemonManager) updateDaemonStoppedState(daemonInfo *TaskRuntimeInfo) error {
 	manager := GetManager()
 	state := manager.loadRuntimeState()
-	
+
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
-	
+
 	// Update daemon info to stopped state
 	stoppedInfo := &TaskRuntimeInfo{
 		Name:           "taskd",
@@ -962,9 +961,9 @@ func (dm *DaemonManager) updateDaemonStoppedState(daemonInfo *TaskRuntimeInfo) e
 		StoppedByTaskd: true, // Stopped by user command
 		RetryNum:       daemonInfo.RetryNum,
 	}
-	
+
 	state.Tasks["taskd"] = stoppedInfo
-	
+
 	// Save the updated state
 	return manager.saveRuntimeStateWithData(state)
 }

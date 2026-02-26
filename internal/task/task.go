@@ -26,7 +26,7 @@ type Task struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	onExit    func(taskName string) // Callback when task exits
-	taskIO    *TaskIO              // IO manager
+	taskIO    *TaskIO               // IO manager
 }
 
 // NewTask create a new task
@@ -52,30 +52,29 @@ func (t *Task) SetExitCallback(callback func(taskName string)) {
 func (t *Task) Start() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	if t.status == "running" {
 		return fmt.Errorf("task is already running")
 	}
-	
+
 	// Reset context if it was cancelled
 	if t.ctx.Err() != nil {
 		t.ctx, t.cancel = context.WithCancel(context.Background())
 	}
-	
+
 	// Parse executable and arguments
 	executable, args := t.parseExecutable()
-	
+
 	// Create command
 	cmd := exec.CommandContext(t.ctx, executable, args...)
-	
-	// Set process attributes for proper background execution on Windows
-	// DETACHED_PROCESS creates a process without a console window
-	// CREATE_NEW_PROCESS_GROUP creates a new process group
+
+	// Set process attributes for proper background execution
+	// On Windows this uses DETACHED_PROCESS to hide console window
+	// On Linux this is a no-op
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | 0x00000008, // 0x00000008 is DETACHED_PROCESS
-		HideWindow:    true,
+		// No special flags needed - cross-platform
 	}
-	
+
 	// Set working directory
 	// Always set working directory - use config value or default to user home
 	workDir := t.config.WorkDir
@@ -87,7 +86,7 @@ func (t *Task) Start() error {
 	if workDir != "" {
 		cmd.Dir = workDir
 	}
-	
+
 	// Set environment variables
 	if t.config.InheritEnv {
 		cmd.Env = os.Environ()
@@ -95,28 +94,28 @@ func (t *Task) Start() error {
 	for _, env := range t.config.Env {
 		cmd.Env = append(cmd.Env, env)
 	}
-	
+
 	// Setup standard input/output
 	if err := t.setupIO(cmd); err != nil {
 		return fmt.Errorf("failed to setup IO: %w", err)
 	}
-	
+
 	// Start process
 	if err := cmd.Start(); err != nil {
 		t.status = "failed"
 		t.lastError = err.Error()
 		return fmt.Errorf("failed to start process '%s': %w", executable, err)
 	}
-	
+
 	t.process = cmd.Process
 	t.status = "running"
 	t.startTime = time.Now()
 	t.lastError = ""
 	t.exitCode = 0
-	
+
 	// Wait for process to exit asynchronously
 	go t.waitForExit(cmd)
-	
+
 	return nil
 }
 
@@ -126,18 +125,18 @@ func (t *Task) parseExecutable() (string, []string) {
 	if len(t.config.Args) > 0 {
 		return t.config.Executable, t.config.Args
 	}
-	
+
 	// Otherwise, parse the Executable string
 	// This is a simple implementation - for more complex parsing, we might need a proper shell parser
 	parts := strings.Fields(t.config.Executable)
 	if len(parts) == 0 {
 		return "", nil
 	}
-	
+
 	if len(parts) == 1 {
 		return parts[0], nil
 	}
-	
+
 	return parts[0], parts[1:]
 }
 
@@ -145,14 +144,14 @@ func (t *Task) parseExecutable() (string, []string) {
 func (t *Task) Stop() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	if t.status != "running" {
 		return fmt.Errorf("task is not running")
 	}
-	
+
 	// Cancel context first
 	t.cancel()
-	
+
 	// Send interrupt signal to process
 	if t.process != nil {
 		// Try to kill the process
@@ -174,7 +173,7 @@ func (t *Task) Stop() error {
 			}
 			return fmt.Errorf("failed to terminate process: %w", err)
 		}
-		
+
 		// Update status immediately since we've terminated the process
 		t.status = "stopped"
 		t.endTime = time.Now()
@@ -182,7 +181,7 @@ func (t *Task) Stop() error {
 		t.exitCode = -1 // Indicates forced termination
 		t.lastError = "Process terminated by user"
 	}
-	
+
 	// Clean up IO resources
 	if t.taskIO != nil {
 		if err := t.taskIO.Close(); err != nil {
@@ -191,21 +190,20 @@ func (t *Task) Stop() error {
 		}
 		t.taskIO = nil
 	}
-	
+
 	return nil
 }
-
 
 // GetInfo get task information
 func (t *Task) GetInfo() *TaskInfo {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var pid int
 	if t.process != nil {
 		pid = t.process.Pid
 	}
-	
+
 	return &TaskInfo{
 		Name:       t.name,
 		Status:     t.status,
@@ -228,7 +226,7 @@ func (t *Task) IsRunning() bool {
 func (t *Task) GetRuntimeInfo() *TaskRuntimeInfo {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	// Always return runtime info for all tasks
 	runtimeInfo := &TaskRuntimeInfo{
 		Name:      t.name,
@@ -237,12 +235,12 @@ func (t *Task) GetRuntimeInfo() *TaskRuntimeInfo {
 		EndTime:   t.endTime,
 		ExitCode:  t.exitCode,
 	}
-	
+
 	// Set PID only for running tasks
 	if t.status == "running" && t.process != nil {
 		runtimeInfo.PID = t.process.Pid
 	}
-	
+
 	return runtimeInfo
 }
 
@@ -250,13 +248,13 @@ func (t *Task) GetRuntimeInfo() *TaskRuntimeInfo {
 func (t *Task) restoreRuntimeState(info *TaskRuntimeInfo) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	// Restore basic information
 	t.status = info.Status
 	t.startTime = info.StartTime
 	t.endTime = info.EndTime
 	t.exitCode = info.ExitCode
-	
+
 	// Check if the process is still running
 	if info.Status == "running" && info.PID > 0 {
 		if process, err := os.FindProcess(info.PID); err == nil {
@@ -264,7 +262,7 @@ func (t *Task) restoreRuntimeState(info *TaskRuntimeInfo) {
 			// We need to try to do something with the process to check if it's real
 			// For now, we'll assume the process might still be running
 			t.process = process
-			
+
 			// Start monitoring the process
 			go t.monitorExistingProcess(process)
 			return
@@ -279,14 +277,14 @@ func (t *Task) restoreRuntimeState(info *TaskRuntimeInfo) {
 func (t *Task) monitorExistingProcess(process *os.Process) {
 	// Wait for the process to exit
 	state, err := process.Wait()
-	
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	t.status = "stopped"
 	t.endTime = time.Now()
 	t.process = nil
-	
+
 	if err != nil {
 		t.lastError = err.Error()
 		t.exitCode = -1
@@ -294,7 +292,7 @@ func (t *Task) monitorExistingProcess(process *os.Process) {
 		t.exitCode = state.ExitCode()
 		t.lastError = ""
 	}
-	
+
 	// Notify manager to update runtime state when task exits
 	if t.onExit != nil {
 		t.onExit(t.name)
@@ -304,20 +302,20 @@ func (t *Task) monitorExistingProcess(process *os.Process) {
 func (t *Task) setupIO(cmd *exec.Cmd) error {
 	// Create task IO configuration
 	ioManager := GetIOManager()
-	
+
 	// Perform runtime validation before creating IO
 	if err := t.validateRuntimeIO(); err != nil {
 		return fmt.Errorf("runtime IO validation failed: %w", err)
 	}
-	
+
 	taskIO, err := ioManager.CreateTaskIO(t.config)
 	if err != nil {
 		return fmt.Errorf("failed to create task IO: %w", err)
 	}
-	
+
 	// Save IO reference for cleanup
 	t.taskIO = taskIO
-	
+
 	// Set standard input/output
 	if taskIO.Stdin != nil {
 		cmd.Stdin = taskIO.Stdin
@@ -328,21 +326,21 @@ func (t *Task) setupIO(cmd *exec.Cmd) error {
 	if taskIO.Stderr != nil {
 		cmd.Stderr = taskIO.Stderr
 	}
-	
+
 	return nil
 }
 
 // validateRuntimeIO performs runtime validation of IO configuration
 func (t *Task) validateRuntimeIO() error {
 	pathResolver := NewPathResolver()
-	
+
 	// Validate stdin file exists at runtime
 	if t.config.Stdin != "" {
 		stdinPath, err := pathResolver.ResolvePath(t.config.Stdin, t.config.WorkDir)
 		if err != nil {
 			return fmt.Errorf("failed to resolve stdin path: %w", err)
 		}
-		
+
 		// Check if file exists
 		info, err := os.Stat(stdinPath)
 		if err != nil {
@@ -355,7 +353,7 @@ func (t *Task) validateRuntimeIO() error {
 			}
 			return wrapFileError(err, stdinPath, "validate stdin file")
 		}
-		
+
 		// Check if it's actually a file (not a directory)
 		if info.IsDir() {
 			return &FileError{
@@ -364,32 +362,32 @@ func (t *Task) validateRuntimeIO() error {
 				Operation: "validate stdin file",
 			}
 		}
-		
+
 		// Check read permissions
 		if err := ValidateFilePermissions(stdinPath, "read"); err != nil {
 			return fmt.Errorf("stdin file permission error: %w", err)
 		}
 	}
-	
+
 	// Validate output directories exist and are writable
 	if t.config.Stdout != "" {
 		stdoutPath, err := pathResolver.ResolvePath(t.config.Stdout, t.config.WorkDir)
 		if err != nil {
 			return fmt.Errorf("failed to resolve stdout path: %w", err)
 		}
-		
+
 		// Ensure parent directory exists and is writable
 		if err := pathResolver.EnsureDir(filepath.Dir(stdoutPath)); err != nil {
 			return fmt.Errorf("stdout directory validation failed: %w", err)
 		}
 	}
-	
+
 	if t.config.Stderr != "" {
 		stderrPath, err := pathResolver.ResolvePath(t.config.Stderr, t.config.WorkDir)
 		if err != nil {
 			return fmt.Errorf("failed to resolve stderr path: %w", err)
 		}
-		
+
 		// Skip directory check if stderr is the same as stdout (already checked)
 		if t.config.Stdout == "" || stderrPath != t.config.Stdout {
 			// Ensure parent directory exists and is writable
@@ -398,20 +396,20 @@ func (t *Task) validateRuntimeIO() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
 func (t *Task) waitForExit(cmd *exec.Cmd) {
 	err := cmd.Wait()
-	
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	t.status = "stopped"
 	t.endTime = time.Now()
 	t.process = nil // Clear the process reference
-	
+
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
 			t.exitCode = exitError.ExitCode()
@@ -423,7 +421,7 @@ func (t *Task) waitForExit(cmd *exec.Cmd) {
 		t.exitCode = 0
 		t.lastError = ""
 	}
-	
+
 	// Clean up IO resources
 	if t.taskIO != nil {
 		if closeErr := t.taskIO.Close(); closeErr != nil {
@@ -432,7 +430,7 @@ func (t *Task) waitForExit(cmd *exec.Cmd) {
 		}
 		t.taskIO = nil
 	}
-	
+
 	// Notify manager to update runtime state when task exits
 	// We need a way to callback to the manager to update the runtime state
 	if t.onExit != nil {
