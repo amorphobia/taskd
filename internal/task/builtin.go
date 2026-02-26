@@ -30,7 +30,7 @@ func (bth *BuiltinTaskHandler) GetBuiltinTaskConfig(name string) *Config {
 		} else {
 			execPath = filepath.Clean(execPath)
 		}
-		
+
 		return &Config{
 			DisplayName: "taskd",
 			Description: "The daemon task of taskd",

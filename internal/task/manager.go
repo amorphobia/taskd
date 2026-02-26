@@ -52,9 +52,9 @@ type DaemonStatus struct {
 
 // ProcessStatus represents the result of process checking
 type ProcessStatus struct {
-	Exists       bool   `json:"exists"`        // Whether the process exists
-	IsTaskd      bool   `json:"is_taskd"`      // Whether it's a taskd process
-	ExitCode     int    `json:"exit_code"`     // Exit code (if exited)
+	Exists         bool   `json:"exists"`          // Whether the process exists
+	IsTaskd        bool   `json:"is_taskd"`        // Whether it's a taskd process
+	ExitCode       int    `json:"exit_code"`       // Exit code (if exited)
 	ExecutablePath string `json:"executable_path"` // Executable file path
 }
 
@@ -158,17 +158,17 @@ func (m *Manager) listTasks() ([]*TaskInfo, error) {
 		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
 		// Continue execution, don't block list display due to daemon startup failure
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	var tasks []*TaskInfo
-	
+
 	// First add daemon task (if exists)
 	if daemonInfo, err := m.getBuiltinTaskStatus("taskd"); err == nil {
 		tasks = append(tasks, daemonInfo)
 	}
-	
+
 	// Then add other tasks
 	for _, task := range m.tasks {
 		info := task.GetInfo()
@@ -224,7 +224,7 @@ func (m *Manager) startTask(name string) error {
 		m.resetTaskRetryCount(name)
 		// Save runtime state after successful start
 		m.saveRuntimeState()
-		
+
 		// Ensure daemon is running after task is successfully started (if needed)
 		// This is important for background tasks that need monitoring
 		if daemonErr := m.ensureDaemonForCommand(); daemonErr != nil {
@@ -261,7 +261,7 @@ func (m *Manager) getBuiltinTaskStatus(name string) (*TaskInfo, error) {
 		// Get daemon status from runtime state
 		state := m.loadRuntimeState()
 		daemonInfo, exists := state.Tasks["taskd"]
-		
+
 		if !exists {
 			// Daemon has never been started
 			return &TaskInfo{
@@ -272,16 +272,16 @@ func (m *Manager) getBuiltinTaskStatus(name string) (*TaskInfo, error) {
 				Executable: "taskd --daemon",
 			}, nil
 		}
-		
+
 		// Check if the daemon is actually running
 		daemonManager := GetDaemonManager()
 		isRunning := daemonManager.IsRunning()
-		
+
 		status := "stopped"
 		if isRunning {
 			status = "running"
 		}
-		
+
 		return &TaskInfo{
 			Name:       "taskd",
 			Status:     status,
@@ -301,27 +301,27 @@ func (m *Manager) getBuiltinTaskDetailInfo(name string) (*TaskDetailInfo, error)
 		if config == nil {
 			return nil, fmt.Errorf("failed to get builtin task config")
 		}
-		
+
 		// Get daemon status from runtime state
 		state := m.loadRuntimeState()
 		daemonInfo, exists := state.Tasks["taskd"]
-		
+
 		status := "stopped"
 		pid := 0
 		startTime := ""
-		
+
 		if exists {
 			// Check if the daemon is actually running
 			daemonManager := GetDaemonManager()
 			isRunning := daemonManager.IsRunning()
-			
+
 			if isRunning {
 				status = "running"
 			}
 			pid = daemonInfo.PID
 			startTime = daemonInfo.StartTime.Format("2006-01-02 15:04:05")
 		}
-		
+
 		return &TaskDetailInfo{
 			Name:        "taskd",
 			Status:      status,
@@ -356,10 +356,10 @@ func (m *Manager) stopTask(name string) error {
 	}
 
 	err := task.Stop()
-	
+
 	// Set StoppedByTaskd flag when manually stopping a task
 	m.setTaskStoppedByTaskd(name, true)
-	
+
 	// Always save runtime state after stop attempt, regardless of success
 	// This ensures that even if the task was already stopped, the state is consistent
 	m.saveRuntimeState()
@@ -394,7 +394,7 @@ func (m *Manager) restartTask(name string) error {
 		}
 		return m.startBuiltinTask(name)
 	}
-	
+
 	m.mu.RLock()
 	task, exists := m.tasks[name]
 	m.mu.RUnlock()
@@ -420,7 +420,7 @@ func (m *Manager) restartTask(name string) error {
 		m.resetTaskRetryCount(name)
 		// Save runtime state after successful restart
 		m.saveRuntimeState()
-		
+
 		// Ensure daemon is running after task is successfully restarted (if needed)
 		// This is important for background tasks that need monitoring
 		if daemonErr := m.ensureDaemonForCommand(); daemonErr != nil {
@@ -665,7 +665,7 @@ func (m *Manager) getTaskDetailInfo(name string) (*TaskDetailInfo, error) {
 		fmt.Printf("Warning: Failed to ensure daemon is running: %v\n", err)
 		// Continue execution, don't block info display due to daemon startup failure
 	}
-	
+
 	// Check if this is a builtin task
 	if m.builtinHandler.IsBuiltinTask(name) {
 		return m.getBuiltinTaskDetailInfo(name)
@@ -716,15 +716,15 @@ func (m *Manager) resetTaskRetryCount(taskName string) {
 	if state.Tasks == nil {
 		return
 	}
-	
+
 	runtimeInfo, exists := state.Tasks[taskName]
 	if !exists {
 		return
 	}
-	
+
 	// Reset retry count
 	runtimeInfo.RetryNum = 0
-	
+
 	// Save updated state
 	if err := m.saveRuntimeStateWithData(state); err != nil {
 		fmt.Printf("Warning: Failed to reset retry count for task %s: %v\n", taskName, err)
@@ -737,7 +737,7 @@ func (m *Manager) setTaskStoppedByTaskd(taskName string, stoppedByTaskd bool) {
 	if state.Tasks == nil {
 		state.Tasks = make(map[string]*TaskRuntimeInfo)
 	}
-	
+
 	runtimeInfo, exists := state.Tasks[taskName]
 	if !exists {
 		// If task doesn't exist in runtime state, create a new entry
@@ -745,7 +745,7 @@ func (m *Manager) setTaskStoppedByTaskd(taskName string, stoppedByTaskd bool) {
 		m.mu.RLock()
 		task, taskExists := m.tasks[taskName]
 		m.mu.RUnlock()
-		
+
 		if taskExists {
 			// Get current task info and create runtime info
 			taskInfo := task.GetInfo()
@@ -766,17 +766,17 @@ func (m *Manager) setTaskStoppedByTaskd(taskName string, stoppedByTaskd bool) {
 			return
 		}
 	}
-	
+
 	// Set StoppedByTaskd flag
 	runtimeInfo.StoppedByTaskd = stoppedByTaskd
-	
+
 	// If manually stopped, also update end time and status
 	if stoppedByTaskd {
 		runtimeInfo.EndTime = time.Now()
 		runtimeInfo.Status = "stopped"
 		runtimeInfo.PID = 0
 	}
-	
+
 	// Save updated state
 	if err := m.saveRuntimeStateWithData(state); err != nil {
 		fmt.Printf("Warning: Failed to set StoppedByTaskd flag for task %s: %v\n", taskName, err)
@@ -806,18 +806,18 @@ func (m *Manager) hasRunningTasks() bool {
 	if state.Tasks == nil {
 		return false
 	}
-	
+
 	for taskName, runtimeInfo := range state.Tasks {
 		// Skip daemon itself
 		if taskName == "taskd" {
 			continue
 		}
-		
+
 		if runtimeInfo.Status == "running" {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -825,10 +825,10 @@ func (m *Manager) hasRunningTasks() bool {
 func (m *Manager) hasAutoStartTasks() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Load runtime state to check retry counts
 	state := m.loadRuntimeState()
-	
+
 	for _, task := range m.tasks {
 		if task.config.AutoStart {
 			// Check task retry status
@@ -837,11 +837,11 @@ func (m *Manager) hasAutoStartTasks() bool {
 				if runtimeInfo.Status == "running" {
 					return true
 				}
-				
+
 				// If task is stopped but not by user, and hasn't reached retry limit, daemon is needed for restart
-				if runtimeInfo.Status == "stopped" && 
-				   !runtimeInfo.StoppedByTaskd &&
-				   (task.config.MaxRetryNum <= 0 || runtimeInfo.RetryNum < task.config.MaxRetryNum) {
+				if runtimeInfo.Status == "stopped" &&
+					!runtimeInfo.StoppedByTaskd &&
+					(task.config.MaxRetryNum <= 0 || runtimeInfo.RetryNum < task.config.MaxRetryNum) {
 					return true
 				}
 			} else {
@@ -850,7 +850,7 @@ func (m *Manager) hasAutoStartTasks() bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -858,7 +858,7 @@ func (m *Manager) hasAutoStartTasks() bool {
 func (m *Manager) hasAnyTasks() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Check if there are any configured tasks
 	return len(m.tasks) > 0
 }

@@ -47,7 +47,7 @@ func validateDaemonFlag(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
 			return fmt.Errorf("--daemon flag cannot be used with other arguments")
 		}
-		
+
 		// Check if other flags are set (excluding daemon and help flags)
 		flagCount := 0
 		cmd.Flags().VisitAll(func(flag *pflag.Flag) {
@@ -55,7 +55,7 @@ func validateDaemonFlag(cmd *cobra.Command, args []string) error {
 				flagCount++
 			}
 		})
-		
+
 		if flagCount > 0 {
 			return fmt.Errorf("--daemon flag cannot be used with other flags")
 		}
@@ -69,7 +69,7 @@ func init() {
 	// Global configuration flags
 	rootCmd.PersistentFlags().StringVar(&config.ConfigFile, "config", "", "config file path (default: $TASKD_HOME/config.toml or ~/.taskd/config.toml)")
 	rootCmd.PersistentFlags().BoolVar(&config.Verbose, "verbose", false, "verbose output")
-	
+
 	// Daemon mode flag (hidden from help)
 	rootCmd.PersistentFlags().BoolVar(&daemonMode, "daemon", false, "run in daemon mode (internal use only)")
 	rootCmd.PersistentFlags().MarkHidden("daemon")

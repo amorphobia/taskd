@@ -13,12 +13,12 @@ var infoCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskName := args[0]
-		
+
 		info, err := task.GetTaskDetailInfo(taskName)
 		if err != nil {
 			return fmt.Errorf("failed to get task info: %w", err)
 		}
-		
+
 		// Display complete task information (including all original status information)
 		displayTaskInfo(info)
 		return nil
@@ -30,33 +30,33 @@ func displayTaskInfo(info *task.TaskDetailInfo) {
 	fmt.Printf("===============================================================\n")
 	fmt.Printf("                    TASK INFORMATION                          \n")
 	fmt.Printf("===============================================================\n")
-	
+
 	// Display basic status information
 	fmt.Printf("Task Name:        %s\n", info.Name)
-	
+
 	// Display name and description if available
 	if info.DisplayName != "" {
 		fmt.Printf("Display Name:     %s\n", info.DisplayName)
 	}
-	
+
 	if info.Description != "" {
 		fmt.Printf("Description:      %s\n", info.Description)
 	}
-	
+
 	// Status with simple indicators
 	statusIndicator := getStatusIndicator(info.Status)
 	fmt.Printf("Status:           [%s] %s\n", statusIndicator, info.Status)
-	
+
 	if info.PID > 0 {
 		fmt.Printf("Process ID:       %d\n", info.PID)
 	}
-	
+
 	if info.StartTime != "" && info.StartTime != "0001-01-01 00:00:00" {
 		fmt.Printf("Start Time:       %s\n", info.StartTime)
 	}
-	
+
 	fmt.Printf("Executable:       %s\n", info.Executable)
-	
+
 	// Display exit information
 	if info.ExitCode != 0 {
 		fmt.Printf("Exit Code:        %d\n", info.ExitCode)
@@ -64,15 +64,15 @@ func displayTaskInfo(info *task.TaskDetailInfo) {
 	if info.LastError != "" {
 		fmt.Printf("Last Error:       %s\n", info.LastError)
 	}
-	
+
 	fmt.Printf("\n")
 	fmt.Printf("---------------------------------------------------------------\n")
 	fmt.Printf("                    CONFIGURATION                             \n")
 	fmt.Printf("---------------------------------------------------------------\n")
-	
+
 	// Display configuration information
 	fmt.Printf("Working Directory: %s\n", info.WorkDir)
-	
+
 	if len(info.Args) > 0 {
 		fmt.Printf("Arguments:         ")
 		for i, arg := range info.Args {
@@ -83,23 +83,23 @@ func displayTaskInfo(info *task.TaskDetailInfo) {
 		}
 		fmt.Printf("\n")
 	}
-	
+
 	if len(info.Env) > 0 {
 		fmt.Printf("Environment:       \n")
 		for _, env := range info.Env {
 			fmt.Printf("                   %s\n", env)
 		}
 	}
-	
+
 	fmt.Printf("Inherit Env:       %s\n", getBoolIndicator(info.InheritEnv))
-	
+
 	// Display IO redirection information
 	if info.IOInfo.StdinPath != "" || info.IOInfo.StdoutPath != "" || info.IOInfo.StderrPath != "" {
 		fmt.Printf("\n")
 		fmt.Printf("---------------------------------------------------------------\n")
 		fmt.Printf("                  IO REDIRECTION                              \n")
 		fmt.Printf("---------------------------------------------------------------\n")
-		
+
 		if info.IOInfo.StdinPath != "" {
 			fmt.Printf("Standard Input:    %s\n", info.IOInfo.StdinPath)
 		}
@@ -113,7 +113,7 @@ func displayTaskInfo(info *task.TaskDetailInfo) {
 			fmt.Printf("Note:              Standard output and error are redirected to the same file\n")
 		}
 	}
-	
+
 	fmt.Printf("===============================================================\n")
 }
 

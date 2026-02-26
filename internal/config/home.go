@@ -18,7 +18,7 @@ func GetTaskDHome() string {
 		}
 		return taskdHome
 	}
-	
+
 	return getDefaultTaskDHome()
 }
 
@@ -29,12 +29,12 @@ func getDefaultTaskDHome() string {
 		// Fallback to current directory if we can't get home directory
 		return ".taskd"
 	}
-	
+
 	taskdHome := filepath.Join(homeDir, ".taskd")
-	
+
 	// Ensure the directory exists
 	os.MkdirAll(taskdHome, 0755)
-	
+
 	return taskdHome
 }
 

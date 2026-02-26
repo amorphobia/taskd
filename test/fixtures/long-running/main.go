@@ -15,7 +15,7 @@ func main() {
 
 	// Create a channel to receive OS signals
 	sigChan := make(chan os.Signal, 1)
-	
+
 	// Register the channel to receive specific signals
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 

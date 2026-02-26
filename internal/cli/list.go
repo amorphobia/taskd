@@ -10,54 +10,55 @@ import (
 )
 
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List tasks",
+	Use:     "list",
+	Short:   "List tasks",
 	Aliases: []string{"ls"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		running, _ := cmd.Flags().GetBool("running")
 		stopped, _ := cmd.Flags().GetBool("stopped")
 		verbose, _ := cmd.Flags().GetBool("verbose")
-		
+
 		tasks, err := task.ListTasks()
 		if err != nil {
 			return fmt.Errorf("failed to get task list: %w", err)
 		}
-		
+
 		// Filter tasks based on flags
 		filteredTasks := filterTasks(tasks, running, stopped)
-		
+
 		if len(filteredTasks) == 0 {
 			displayNoTasksMessage(running, stopped)
 			return nil
 		}
-		
+
 		// Display tasks
 		if verbose {
 			displayTasksVerbose(filteredTasks)
 		} else {
 			displayTasksCompact(filteredTasks)
 		}
-		
+
 		// Display summary
 		displayTasksSummary(tasks, len(filteredTasks))
-		
+
 		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(listCmd)
-	
+
 	listCmd.Flags().BoolP("running", "r", false, "show only running tasks")
 	listCmd.Flags().BoolP("stopped", "s", false, "show only stopped tasks")
 	listCmd.Flags().BoolP("verbose", "v", false, "show detailed information")
 }
+
 // filterTasks filters tasks based on running/stopped flags
 func filterTasks(tasks []*task.TaskInfo, running, stopped bool) []*task.TaskInfo {
 	if !running && !stopped {
 		return tasks // No filter, return all
 	}
-	
+
 	var filtered []*task.TaskInfo
 	for _, t := range tasks {
 		if running && t.Status == "running" {
@@ -87,21 +88,21 @@ func displayNoTasksMessage(running, stopped bool) {
 func displayTasksCompact(tasks []*task.TaskInfo) {
 	fmt.Printf("Task List\n")
 	fmt.Printf("===============================================================\n")
-	
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "NAME\tSTATUS\tPID\tSTART TIME\tEXECUTABLE")
 	fmt.Fprintln(w, "----\t------\t---\t----------\t----------")
-	
+
 	for _, t := range tasks {
 		statusIndicator := getSimpleStatusIndicator(t.Status)
 		pidStr := formatPID(t.PID)
 		startTime := formatStartTime(t.StartTime)
 		executable := truncateString(t.Executable, 30)
-		
+
 		fmt.Fprintf(w, "%s\t[%s] %s\t%s\t%s\t%s\n",
 			t.Name, statusIndicator, t.Status, pidStr, startTime, executable)
 	}
-	
+
 	w.Flush()
 }
 
@@ -109,26 +110,26 @@ func displayTasksCompact(tasks []*task.TaskInfo) {
 func displayTasksVerbose(tasks []*task.TaskInfo) {
 	fmt.Printf("Task List (Detailed)\n")
 	fmt.Printf("===============================================================\n")
-	
+
 	for i, t := range tasks {
 		if i > 0 {
 			fmt.Printf("---------------------------------------------------------------\n")
 		}
-		
+
 		statusIndicator := getSimpleStatusIndicator(t.Status)
 		fmt.Printf("Name:       %s\n", t.Name)
 		fmt.Printf("Status:     [%s] %s\n", statusIndicator, t.Status)
-		
+
 		if t.PID > 0 {
 			fmt.Printf("PID:        %d\n", t.PID)
 		}
-		
+
 		if t.StartTime != "" && t.StartTime != "0001-01-01 00:00:00" {
 			fmt.Printf("Started:    %s\n", t.StartTime)
 		}
-		
+
 		fmt.Printf("Executable: %s\n", t.Executable)
-		
+
 		// Try to get additional IO info if available
 		if ioInfo, err := getTaskIOInfo(t.Name); err == nil {
 			if ioInfo.StdinPath != "" || ioInfo.StdoutPath != "" || ioInfo.StderrPath != "" {
@@ -150,10 +151,10 @@ func displayTasksVerbose(tasks []*task.TaskInfo) {
 // displayTasksSummary shows a summary of tasks
 func displayTasksSummary(allTasks []*task.TaskInfo, displayedCount int) {
 	fmt.Printf("===============================================================\n")
-	
+
 	runningCount := 0
 	stoppedCount := 0
-	
+
 	for _, t := range allTasks {
 		if t.Status == "running" {
 			runningCount++
@@ -161,18 +162,18 @@ func displayTasksSummary(allTasks []*task.TaskInfo, displayedCount int) {
 			stoppedCount++
 		}
 	}
-	
+
 	if displayedCount < len(allTasks) {
 		fmt.Printf("Showing %d of %d tasks", displayedCount, len(allTasks))
 	} else {
 		fmt.Printf("Total: %d tasks", len(allTasks))
 	}
-	
+
 	if runningCount > 0 || stoppedCount > 0 {
 		fmt.Printf(" (%d running, %d stopped)", runningCount, stoppedCount)
 	}
 	fmt.Printf("\n")
-	
+
 	// Show helpful commands
 	if len(allTasks) > 0 {
 		fmt.Printf("Use 'taskd info <task-name>' for detailed information.\n")

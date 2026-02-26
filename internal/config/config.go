@@ -14,11 +14,11 @@ var (
 
 // GlobalConfig global configuration
 type GlobalConfig struct {
-	LogLevel    string `mapstructure:"log_level"`
-	LogFile     string `mapstructure:"log_file"`
-	PidFile     string `mapstructure:"pid_file"`
-	AutoStart   bool   `mapstructure:"auto_start"`
-	MaxTasks    int    `mapstructure:"max_tasks"`
+	LogLevel  string `mapstructure:"log_level"`
+	LogFile   string `mapstructure:"log_file"`
+	PidFile   string `mapstructure:"pid_file"`
+	AutoStart bool   `mapstructure:"auto_start"`
+	MaxTasks  int    `mapstructure:"max_tasks"`
 }
 
 // InitConfig initialize configuration
@@ -28,15 +28,15 @@ func InitConfig() {
 	} else {
 		// Default config file path using TaskD home directory
 		configDir := GetTaskDConfigDir()
-		
+
 		viper.AddConfigPath(configDir)
 		viper.SetConfigName("config")
 		viper.SetConfigType("toml")
 	}
-	
+
 	// Set default values
 	setDefaults()
-	
+
 	// Read config file
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -64,7 +64,7 @@ func setDefaults() {
 func createDefaultConfig() {
 	homeDir, _ := os.UserHomeDir()
 	configPath := filepath.Join(homeDir, ".taskd", "config.toml")
-	
+
 	defaultConfig := `# TaskD Global Configuration File
 
 # Log level: debug, info, warn, error
@@ -82,6 +82,6 @@ auto_start = false
 # Maximum number of tasks
 max_tasks = 100
 `
-	
+
 	os.WriteFile(configPath, []byte(defaultConfig), 0644)
 }

@@ -165,11 +165,11 @@ func wrapFileError(err error, path, operation string) error {
 	if err == nil {
 		return nil
 	}
-	
+
 	if _, ok := isFileError(err); ok {
 		return err // Already a FileError
 	}
-	
+
 	return handleFileError(err, path, operation)
 }
 
@@ -177,21 +177,21 @@ func wrapFileError(err error, path, operation string) error {
 func checkDiskSpace(path string, requiredBytes int64) error {
 	// This is a simplified check - in a real implementation, you might want
 	// to use platform-specific APIs to check available disk space
-	
+
 	// Try to create a temporary file to test write permissions and space
 	tempFile, err := os.CreateTemp(path, "taskd_space_check_")
 	if err != nil {
 		return handleFileError(err, path, "check disk space")
 	}
-	
+
 	// Try to write some data to test space availability
 	testData := make([]byte, min(requiredBytes, 1024)) // Test with up to 1KB
 	_, writeErr := tempFile.Write(testData)
-	
+
 	// Clean up immediately
 	tempFile.Close()
 	os.Remove(tempFile.Name())
-	
+
 	if writeErr != nil {
 		// Check if it's a disk space error
 		if fileErr := handleFileError(writeErr, path, "test disk space"); fileErr != nil {
@@ -207,7 +207,7 @@ func checkDiskSpace(path string, requiredBytes int64) error {
 		}
 		return writeErr
 	}
-	
+
 	return nil
 }
 
@@ -234,7 +234,7 @@ func validateFilePermissions(path, operation string) error {
 		}
 		file.Close()
 		return nil
-		
+
 	case "write", "create":
 		// Check if file exists
 		if _, err := os.Stat(path); err == nil {
@@ -257,7 +257,7 @@ func validateFilePermissions(path, operation string) error {
 		} else {
 			return wrapFileError(err, path, operation)
 		}
-		
+
 	default:
 		return fmt.Errorf("unknown operation: %s", operation)
 	}

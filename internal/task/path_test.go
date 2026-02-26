@@ -9,7 +9,7 @@ import (
 
 func TestDefaultPathResolver_ResolvePath(t *testing.T) {
 	resolver := NewPathResolver()
-	
+
 	tests := []struct {
 		name     string
 		path     string
@@ -65,7 +65,7 @@ func TestDefaultPathResolver_ResolvePath(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Skip platform-specific tests
@@ -75,21 +75,21 @@ func TestDefaultPathResolver_ResolvePath(t *testing.T) {
 			if runtime.GOOS != "windows" && len(tt.path) > 1 && tt.path[1] == ':' {
 				t.Skip("Skipping Windows path test on Unix")
 			}
-			
+
 			result, err := resolver.ResolvePath(tt.path, tt.workDir)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("ResolvePath() expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("ResolvePath() unexpected error: %v", err)
 				return
 			}
-			
+
 			// Normalize expected path for comparison
 			expected := filepath.Clean(tt.expected)
 			if result != expected {
@@ -101,7 +101,7 @@ func TestDefaultPathResolver_ResolvePath(t *testing.T) {
 
 func TestDefaultPathResolver_ValidatePath(t *testing.T) {
 	resolver := NewPathResolver()
-	
+
 	tests := []struct {
 		name    string
 		path    string
@@ -158,11 +158,11 @@ func TestDefaultPathResolver_ValidatePath(t *testing.T) {
 			wantErr: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := resolver.ValidatePath(tt.path)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("ValidatePath() expected error for path %q, got nil", tt.path)
@@ -177,14 +177,14 @@ func TestDefaultPathResolver_ValidatePath(t *testing.T) {
 }
 func TestDefaultPathResolver_EnsureDir(t *testing.T) {
 	resolver := NewPathResolver()
-	
+
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "taskd_test_")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
-	
+
 	tests := []struct {
 		name    string
 		dirPath string
@@ -230,28 +230,28 @@ func TestDefaultPathResolver_EnsureDir(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup test conditions
 			if err := tt.setup(); err != nil {
 				t.Fatalf("Test setup failed: %v", err)
 			}
-			
+
 			err := resolver.EnsureDir(tt.dirPath)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("EnsureDir() expected error for path %q, got nil", tt.dirPath)
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("EnsureDir() unexpected error for path %q: %v", tt.dirPath, err)
 				return
 			}
-			
+
 			// Verify directory was created
 			if info, err := os.Stat(tt.dirPath); err != nil {
 				t.Errorf("Directory was not created: %v", err)
@@ -264,7 +264,7 @@ func TestDefaultPathResolver_EnsureDir(t *testing.T) {
 
 func TestDefaultPathResolver_CrossPlatform(t *testing.T) {
 	resolver := NewPathResolver()
-	
+
 	// Test platform-specific behavior
 	if runtime.GOOS == "windows" {
 		t.Run("Windows path handling", func(t *testing.T) {
@@ -278,7 +278,7 @@ func TestDefaultPathResolver_CrossPlatform(t *testing.T) {
 				t.Errorf("Windows path resolution = %v, want %v", result, expected)
 			}
 		})
-		
+
 		t.Run("Windows reserved names", func(t *testing.T) {
 			reservedNames := []string{"CON", "PRN", "AUX", "NUL", "COM1", "LPT1"}
 			for _, name := range reservedNames {
@@ -305,7 +305,7 @@ func TestDefaultPathResolver_CrossPlatform(t *testing.T) {
 
 func TestDefaultPathResolver_EdgeCases(t *testing.T) {
 	resolver := NewPathResolver()
-	
+
 	t.Run("path with spaces", func(t *testing.T) {
 		result, err := resolver.ResolvePath("my logs/output file.log", "/project")
 		if err != nil {
@@ -316,7 +316,7 @@ func TestDefaultPathResolver_EdgeCases(t *testing.T) {
 			t.Errorf("Path with spaces = %v, want %v", result, expected)
 		}
 	})
-	
+
 	t.Run("path with special characters", func(t *testing.T) {
 		result, err := resolver.ResolvePath("logs/output-file_v1.2.log", "/project")
 		if err != nil {
@@ -327,7 +327,7 @@ func TestDefaultPathResolver_EdgeCases(t *testing.T) {
 			t.Errorf("Path with special characters = %v, want %v", result, expected)
 		}
 	})
-	
+
 	t.Run("path normalization", func(t *testing.T) {
 		result, err := resolver.ResolvePath("./logs/../logs/./output.log", "/project")
 		if err != nil {

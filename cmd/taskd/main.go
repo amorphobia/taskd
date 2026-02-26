@@ -17,7 +17,7 @@ var version = "develop"
 func main() {
 	// Set version for CLI
 	cli.SetVersion(version)
-	
+
 	// Check for version flag
 	for _, arg := range os.Args[1:] {
 		if arg == "--version" || arg == "-v" {
@@ -25,7 +25,7 @@ func main() {
 			return
 		}
 	}
-	
+
 	// Check command line arguments directly for --daemon flag
 	for _, arg := range os.Args[1:] {
 		if arg == "--daemon" {
@@ -33,7 +33,7 @@ func main() {
 			return
 		}
 	}
-	
+
 	// Normal command mode
 	if err := cli.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -44,13 +44,13 @@ func main() {
 // runDaemonMode runs the daemon process
 func runDaemonMode() {
 	fmt.Println("Starting TaskD daemon...")
-	
+
 	// Initialize task monitor with 5 second check interval
 	monitor := task.NewTaskMonitor(5 * time.Second)
-	
+
 	// Set up signal handling for graceful shutdown
 	setupSignalHandling(monitor)
-	
+
 	// Start monitoring
 	monitor.Start()
 }
@@ -59,14 +59,14 @@ func runDaemonMode() {
 func setupSignalHandling(monitor *task.TaskMonitor) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	go func() {
 		sig := <-sigChan
 		fmt.Printf("Received signal %v, shutting down daemon...\n", sig)
-		
+
 		// Stop monitoring gracefully
 		monitor.Stop()
-		
+
 		os.Exit(0)
 	}()
 }

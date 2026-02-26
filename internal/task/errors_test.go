@@ -40,7 +40,7 @@ func TestFileError_Error(t *testing.T) {
 			contains: "Invalid path",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errMsg := tt.fileErr.Error()
@@ -65,13 +65,13 @@ func TestValidateFilePermissions(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
-	
+
 	// Create a test file
 	testFile := filepath.Join(tempDir, "test.txt")
 	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
-	
+
 	tests := []struct {
 		name      string
 		path      string
@@ -103,11 +103,11 @@ func TestValidateFilePermissions(t *testing.T) {
 			wantErr:   true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateFilePermissions(tt.path, tt.operation)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("ValidateFilePermissions() expected error, got nil")
@@ -123,7 +123,7 @@ func TestValidateFilePermissions(t *testing.T) {
 
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || 
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
 }
 
