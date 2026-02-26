@@ -1,6 +1,6 @@
 # TaskD Makefile
 
-.PHONY: build clean test install dev fmt lint test-fixtures clean-fixtures
+.PHONY: build clean test install dev fmt lint test-fixtures clean-fixtures vendor
 
 # Variable definitions
 BINARY_NAME=taskd
@@ -16,6 +16,11 @@ build:
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir $(BUILD_DIR)
 	go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY_NAME).exe $(MAIN_PATH)
+
+# Vendor dependencies for offline builds
+vendor:
+	@echo "Creating vendor directory..."
+	go mod vendor
 
 # Development build
 dev:
@@ -88,5 +93,6 @@ help:
 	@echo "  fmt           - Format code"
 	@echo "  lint          - Lint code"
 	@echo "  deps          - Install dependencies"
+	@echo "  vendor        - Create vendor directory"
 	@echo "  build-all     - Cross compile"
 	@echo "  run           - Run program"

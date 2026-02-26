@@ -26,6 +26,7 @@ if /i "%1"=="lint" call :lint
 if /i "%1"=="deps" call :deps
 if /i "%1"=="build-all" call :build-all
 if /i "%1"=="run" call :run
+if /i "%1"=="vendor" call :vendor
 if /i "%1"=="help" call :help
 if /i "%1"=="all" call :build
 
@@ -105,6 +106,11 @@ goto :eof
 go run %MAIN_PATH%
 goto :eof
 
+:vendor
+echo Creating vendor directory...
+go mod vendor
+goto :eof
+
 :help
 echo Available commands:
 echo   build         - Build executable
@@ -116,6 +122,7 @@ echo   clean-fixtures- Clean test fixtures
 echo   fmt           - Format code
 echo   lint          - Lint code
 echo   deps          - Install dependencies
+echo   vendor        - Create vendor directory
 echo   build-all     - Cross compile
 echo   run           - Run program
 echo   help          - Show this help
